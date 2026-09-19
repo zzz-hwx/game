@@ -1,0 +1,491 @@
+<script setup lang="ts">
+import SvgIcon from '../../components/SvgIcon.vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import {
+  CELL, COLS, ROWS, createGame, directions, levels, parsePreferences, queueTurn,
+  startGame as resetAndStart, tick,
+} from './engine'
+import type { Direction, GameStatus, Level, Point } from './engine'
+
+const STORAGE_KEY = 'little-break-snake'
+const game = reactive(createGame())
+const best = ref(0)
+const level = ref<Level>('normal')
+const soundEnabled = ref(false)
+const announcement = ref('')
+const popping = ref(false)
+const scorePopKey = ref(0)
+const root = ref<HTMLDivElement | null>(null)
+const board = ref<HTMLDivElement | null>(null)
+const canvas = ref<HTMLCanvasElement | null>(null)
+const startButton = ref<HTMLButtonElement | null>(null)
+const pauseButton = ref<HTMLButtonElement | null>(null)
+const active = computed(() => game.status === 'running' || game.status === 'paused')
+const soundLabel = computed(() => soundEnabled.value ? '关闭音效' : '开启音效')
+const speedCaption = computed(() => active.value ? '本局速度已锁定，结束后可调整' : levels[level.value].caption)
+const statusLabels: Record<GameStatus, string> = {
+  ready: '准备就绪', running: '快乐进行中', paused: '休息一下', over: '本局结束', won: '完美通关',
+}
+const difficultyOptions: { level: Level; icon: string; label: string }[] = [
+  { level: 'easy', icon: 'Ⅰ', label: '悠闲' },
+  { level: 'normal', icon: 'Ⅱ', label: '标准' },
+  { level: 'hard', icon: 'Ⅲ', label: '挑战' },
+]
+const mobileDirections: { direction: Direction; label: string; symbol: string }[] = [
+  { direction: 'left', label: '向左', symbol: '←' },
+  { direction: 'down', label: '向下', symbol: '↓' },
+  { direction: 'right', label: '向右', symbol: '→' },
+]
+const overlay = computed(() => {
+  if (game.status === 'paused') return {
+    title: '歇一会儿，没关系。', description: '小蛇在这里等你，准备好再继续。', button: '继续游戏',
+    eyebrow: 'NO RUSH, TAKE YOUR TIME', hint: '按空格键继续',
+  }
+  if (game.status === 'over' || game.status === 'won') return {
+    title: game.status === 'won' ? '一口一口，吃成冠军！' : '休息一下，再来一局？',
+    description: `本局得分 ${game.score} · 小蛇长度 ${game.snake.length} 格`, button: '再玩一次',
+    eyebrow: game.status === 'won' ? 'YOU ATE THE WHOLE WORLD' : 'A LITTLE BREAK, A FRESH START',
+    hint: '按空格键，快乐重新开始',
+  }
+  return {
+    title: '准备好，开吃！', description: '没有复杂规则，只有简单快乐。', button: '开始游戏',
+    eyebrow: "LET'S TAKE A LITTLE BREAK", hint: '也可以按空格键开始',
+  }
+})
+
+let mounted = false
+let timer: ReturnType<typeof setTimeout> | undefined
+let observer: ResizeObserver | undefined
+let context: CanvasRenderingContext2D | null = null
+let audioContext: AudioContext | undefined
+let touchStart: { x: number; y: number; pointerId: number } | null = null
+const tones = new Set<{ oscillator: OscillatorNode; gain: GainNode }>()
+
+function formatScore(value: number): string {
+  return String(value).padStart(2, '0')
+}
+
+function savePreferences(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ best: best.value, level: level.value, sound: soundEnabled.value }))
+  } catch { /* Storage may be disabled. The game still works for this session. */ }
+}
+
+function clearTimer(): void {
+  if (timer !== undefined) clearTimeout(timer)
+  timer = undefined
+}
+
+function focusBoard(): void {
+  void nextTick(() => {
+    if (mounted && game.status === 'running') board.value?.focus({ preventScroll: true })
+  })
+}
+
+function announceOverlay(focus: boolean): void {
+  announcement.value = `${overlay.value.title} ${overlay.value.description}`
+  if (focus) void nextTick(() => {
+    if (mounted && game.status !== 'running') startButton.value?.focus({ preventScroll: true })
+  })
+}
+
+function scheduleTick(): void {
+  clearTimer()
+  if (mounted && game.status === 'running') timer = setTimeout(runTick, levels[level.value].delay)
+}
+
+function startGame(): void {
+  clearTimer()
+  resetAndStart(game)
+  popping.value = false
+  draw()
+  playTone('start')
+  scheduleTick()
+  announcement.value = '游戏开始。方向键或 WASD 控制移动，空格键暂停。'
+  focusBoard()
+}
+
+function runTick(): void {
+  timer = undefined
+  const result = tick(game)
+  if (result === 'idle') return
+  if (result === 'ate' || result === 'won') {
+    if (game.score > best.value) {
+      best.value = game.score
+      savePreferences()
+    }
+    scorePopKey.value++
+    popping.value = true
+    playTone('eat')
+  }
+  draw()
+  if (result === 'over' || result === 'won') {
+    clearTimer()
+    if (result === 'over') playTone('over')
+    announceOverlay(document.activeElement === board.value || document.activeElement === pauseButton.value)
+  } else scheduleTick()
+}
+
+function pauseGame(focus = true): void {
+  if (game.status !== 'running') return
+  clearTimer()
+  game.status = 'paused'
+  announceOverlay(focus)
+}
+
+function resumeGame(): void {
+  if (game.status !== 'paused') return
+  game.status = 'running'
+  scheduleTick()
+  announcement.value = '游戏继续。'
+  focusBoard()
+}
+
+function togglePause(): void {
+  if (game.status === 'running') pauseGame()
+  else if (game.status === 'paused') resumeGame()
+  else startGame()
+}
+
+function activateStart(): void {
+  if (game.status === 'paused') resumeGame()
+  else startGame()
+}
+
+function changeDirection(name: Direction): void {
+  if (game.status === 'ready') startGame()
+  queueTurn(game, name)
+}
+
+function changeLevel(next: Level): void {
+  if (active.value) return
+  level.value = next
+  savePreferences()
+}
+
+function toggleSound(): void {
+  soundEnabled.value = !soundEnabled.value
+  savePreferences()
+  if (soundEnabled.value) playTone('start')
+}
+
+function playTone(type: 'eat' | 'start' | 'over'): void {
+  if (!soundEnabled.value || !mounted) return
+  try {
+    const AudioConstructor = window.AudioContext
+      ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioConstructor) return
+    audioContext ??= new AudioConstructor()
+    if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {})
+    const oscillator = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+    const tone = { oscillator, gain }
+    tones.add(tone)
+    const frequencies = { eat: [660, 990], start: [440, 660], over: [220, 110] } as const
+    const now = audioContext.currentTime
+    oscillator.type = 'sine'
+    oscillator.frequency.setValueAtTime(frequencies[type][0], now)
+    oscillator.frequency.exponentialRampToValueAtTime(frequencies[type][1], now + 0.12)
+    gain.gain.setValueAtTime(0.065, now)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17)
+    oscillator.connect(gain)
+    gain.connect(audioContext.destination)
+    oscillator.onended = () => {
+      oscillator.disconnect()
+      gain.disconnect()
+      tones.delete(tone)
+    }
+    oscillator.start(now)
+    oscillator.stop(now + 0.18)
+  } catch { /* Audio is optional, including on browsers that block it. */ }
+}
+
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, color: string): void {
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.roundRect(x, y, width, height, radius)
+  ctx.fill()
+}
+
+function drawFood(ctx: CanvasRenderingContext2D, position: Point): void {
+  const x = position.x * CELL
+  const y = position.y * CELL
+  ctx.fillStyle = '#c8795630'
+  ctx.beginPath()
+  ctx.arc(x + CELL / 2, y + CELL / 2, 14, 0, Math.PI * 2)
+  ctx.fill()
+  roundedRect(ctx, x + 4, y + 5, CELL - 8, CELL - 7, 6, '#cc7b5e')
+  roundedRect(ctx, x + 7, y + 7, 4, 5, 2, '#e9b59a')
+  ctx.strokeStyle = '#6c8b4c'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(x + 13, y + 5)
+  ctx.quadraticCurveTo(x + 12, y, x + 17, y + 1)
+  ctx.stroke()
+}
+
+function drawSnake(ctx: CanvasRenderingContext2D, parts: readonly Point[], facing: Readonly<Point>): void {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]
+    if (!part) continue
+    const color = i === 0 ? '#305e3c' : '#66894b'
+    roundedRect(ctx, part.x * CELL + 2, part.y * CELL + 2, CELL - 4, CELL - 4, 6, color)
+    const previous = parts[i - 1]
+    if (previous) {
+      const x = Math.min(part.x, previous.x) * CELL + CELL / 2 - 7
+      const y = Math.min(part.y, previous.y) * CELL + CELL / 2 - 7
+      roundedRect(ctx, x, y, Math.abs(part.x - previous.x) * CELL + 14, Math.abs(part.y - previous.y) * CELL + 14, 3, color)
+    }
+  }
+  const head = parts[0]
+  if (!head) return
+  const centerX = head.x * CELL + CELL / 2
+  const centerY = head.y * CELL + CELL / 2
+  for (const side of [-1, 1]) {
+    const eyeX = centerX + facing.x * 4 + facing.y * side * 5
+    const eyeY = centerY + facing.y * 4 + facing.x * side * 5
+    ctx.fillStyle = '#f1f4dc'
+    ctx.beginPath()
+    ctx.arc(eyeX, eyeY, 3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#233e2a'
+    ctx.beginPath()
+    ctx.arc(eyeX + facing.x, eyeY + facing.y, 1.5, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+function draw(): void {
+  const ctx = context
+  if (!ctx) return
+  const width = COLS * CELL
+  const height = ROWS * CELL
+  ctx.clearRect(0, 0, width, height)
+  ctx.fillStyle = '#eaf0d8'
+  ctx.fillRect(0, 0, width, height)
+  ctx.strokeStyle = '#dce5c980'
+  ctx.lineWidth = 0.65
+  ctx.beginPath()
+  for (let x = 0; x <= COLS; x++) { ctx.moveTo(x * CELL, 0); ctx.lineTo(x * CELL, height) }
+  for (let y = 0; y <= ROWS; y++) { ctx.moveTo(0, y * CELL); ctx.lineTo(width, y * CELL) }
+  ctx.stroke()
+  if (game.status === 'ready') {
+    ctx.globalAlpha = 0.2
+    const decorations = [
+      [{ x: 3, y: 4 }, { x: 3, y: 5 }, { x: 3, y: 6 }, { x: 4, y: 6 }, { x: 5, y: 6 }],
+      [{ x: 21, y: 17 }, { x: 22, y: 17 }, { x: 23, y: 17 }, { x: 23, y: 16 }, { x: 23, y: 15 }],
+    ]
+    for (const parts of decorations) drawSnake(ctx, parts, directions.right)
+    drawFood(ctx, { x: 22, y: 4 })
+    drawFood(ctx, { x: 6, y: 17 })
+    ctx.globalAlpha = 1
+    return
+  }
+  if (game.food) drawFood(ctx, game.food)
+  drawSnake(ctx, game.snake, directions[game.direction])
+}
+
+function resizeCanvas(): void {
+  if (!board.value || !canvas.value || !context) return
+  const ratio = Math.min(window.devicePixelRatio || 1, 2)
+  const bounds = board.value.getBoundingClientRect()
+  canvas.value.width = Math.max(1, Math.round(bounds.width * ratio))
+  canvas.value.height = Math.max(1, Math.round(bounds.height * ratio))
+  context.setTransform(canvas.value.width / (COLS * CELL), 0, 0, canvas.value.height / (ROWS * CELL), 0, 0)
+  draw()
+}
+
+const keyDirections: Readonly<Record<string, Direction>> = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+  w: 'up', s: 'down', a: 'left', d: 'right',
+}
+
+function onKeyDown(event: KeyboardEvent): void {
+  const target = event.target instanceof Element ? event.target : null
+  if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing
+    || target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return
+  const interactive = target?.closest('button, a, [role="button"], [role="link"], [role="switch"], [role="checkbox"], [role="slider"], [tabindex]')
+  // Do not hijack the shell's navigation or Space on settings/sound/restart controls.
+  if (interactive && !root.value?.contains(interactive)) return
+  const name = keyDirections[event.key] ?? keyDirections[event.key.toLowerCase()]
+  if (name) {
+    event.preventDefault()
+    if (!event.repeat) changeDirection(name)
+  } else if (event.code === 'Space' || event.key === ' ') {
+    if (interactive && interactive !== board.value && interactive !== startButton.value && interactive !== pauseButton.value) return
+    event.preventDefault()
+    if (!event.repeat) togglePause()
+  } else if (event.key === 'Escape') {
+    pauseGame()
+  }
+}
+
+function onDirectionPointer(event: PointerEvent, direction: Direction): void {
+  if (!event.isPrimary || event.button !== 0) return
+  event.preventDefault()
+  changeDirection(direction)
+  if (game.status === 'running') focusBoard()
+}
+
+function onDirectionClick(event: MouseEvent, direction: Direction): void {
+  if (event.detail === 0) {
+    changeDirection(direction)
+    if (game.status === 'running') focusBoard()
+  }
+}
+
+function onBoardPointerDown(event: PointerEvent): void {
+  if (!event.isPrimary || event.button !== 0 || (event.target instanceof Element && event.target.closest('button'))) return
+  touchStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId }
+  board.value?.setPointerCapture(event.pointerId)
+  board.value?.focus({ preventScroll: true })
+}
+
+function clearTouch(): void {
+  const pointerId = touchStart?.pointerId
+  touchStart = null
+  if (pointerId !== undefined && board.value?.hasPointerCapture(pointerId)) board.value.releasePointerCapture(pointerId)
+}
+
+function onBoardPointerUp(event: PointerEvent): void {
+  if (!touchStart || touchStart.pointerId !== event.pointerId) return
+  const dx = event.clientX - touchStart.x
+  const dy = event.clientY - touchStart.y
+  clearTouch()
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 16) return
+  changeDirection(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up')
+}
+
+function onBlur(): void { pauseGame(false) }
+function onVisibilityChange(): void { if (document.hidden) pauseGame(false) }
+
+onMounted(() => {
+  mounted = true
+  try {
+    const saved = parsePreferences(localStorage.getItem(STORAGE_KEY))
+    best.value = saved.best
+    level.value = saved.level
+    soundEnabled.value = saved.sound
+  } catch { /* Local storage can be unavailable. */ }
+  context = canvas.value?.getContext('2d') ?? null
+  if (typeof ResizeObserver !== 'undefined' && board.value) {
+    observer = new ResizeObserver(resizeCanvas)
+    observer.observe(board.value)
+  }
+  resizeCanvas()
+  document.addEventListener('keydown', onKeyDown)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('blur', onBlur)
+  window.addEventListener('resize', resizeCanvas)
+})
+
+onBeforeUnmount(() => {
+  mounted = false
+  clearTimer()
+  clearTouch()
+  observer?.disconnect()
+  document.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('blur', onBlur)
+  window.removeEventListener('resize', resizeCanvas)
+  for (const { oscillator, gain } of tones) {
+    oscillator.onended = null
+    try { oscillator.stop() } catch { /* It may already have stopped. */ }
+    oscillator.disconnect()
+    gain.disconnect()
+  }
+  tones.clear()
+  if (audioContext && audioContext.state !== 'closed') void audioContext.close().catch(() => {})
+  audioContext = undefined
+  context = null
+})
+</script>
+
+<template>
+  <div ref="root" class="snake-game">
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <div class="eyebrow"><span class="tiny-line"></span> 小游戏，大快乐 <span class="eyebrow-separator">/</span> THE CLASSICS</div>
+          <h1 id="page-title">贪吃蛇<span class="title-dot">.</span><span class="title-tag">经典回归</span></h1>
+          <p class="intro-description">放下待办，吃掉烦恼。给自己一个刚刚好的小休息。</p>
+        </div>
+        <div class="intro-note"><SvgIcon class="icon" aria-hidden="true" name="icon-leaf" /><span>不赶时间<br><strong>快乐就好。</strong></span></div>
+      </section>
+
+      <div class="game-layout">
+        <section class="game-card" aria-label="贪吃蛇游戏">
+          <div class="scoreboard">
+            <div class="score-main"><span class="score-label">当前得分</span><span id="score" class="score-value">{{ formatScore(game.score) }}</span></div>
+            <div class="score-best"><SvgIcon class="icon" aria-hidden="true" name="icon-cup" /><div><span class="score-label">最高纪录</span><span id="best-score" class="best-value">{{ formatScore(best) }}</span></div></div>
+            <div id="game-status" class="game-status" :data-state="game.status"><span></span><span id="status-text">{{ statusLabels[game.status] }}</span></div>
+          </div>
+          <div class="board-frame">
+            <div id="board" ref="board" class="board" tabindex="0" role="group" aria-label="贪吃蛇棋盘" aria-describedby="game-controls-help"
+              @pointerdown="onBoardPointerDown" @pointerup="onBoardPointerUp" @pointercancel="clearTouch" @lostpointercapture="clearTouch">
+              <canvas id="game-canvas" ref="canvas" width="700" height="550" role="img" aria-label="贪吃蛇游戏区域。使用方向键或 WASD 移动，空格键暂停。">使用方向键或 WASD 移动，空格键暂停。</canvas>
+              <div class="board-corner corner-tl"></div><div class="board-corner corner-tr"></div><div class="board-corner corner-bl"></div><div class="board-corner corner-br"></div>
+              <div id="overlay" class="overlay" :hidden="game.status === 'running'">
+                <div class="overlay-content">
+                  <span id="overlay-eyebrow" class="overlay-eyebrow">{{ overlay.eyebrow }}</span>
+                  <div class="snake-mascot" aria-hidden="true"><SvgIcon viewBox="0 0 112 76" sprite="illustrations" name="snake-mascot" /></div>
+                  <h2 id="overlay-title">{{ overlay.title }}</h2>
+                  <p id="overlay-description">{{ overlay.description }}</p>
+                  <button id="start-button" ref="startButton" type="button" class="primary-button" @click="activateStart"><SvgIcon class="icon" aria-hidden="true" name="icon-play" /><span id="start-label">{{ overlay.button }}</span><span class="button-key" aria-hidden="true">SPACE</span></button>
+                  <span id="overlay-hint" class="overlay-hint">{{ overlay.hint }}</span>
+                </div>
+              </div>
+              <div id="count-pop" :key="scorePopKey" class="count-pop" :class="{ pop: popping }" aria-hidden="true" @animationend="popping = false">+10</div>
+            </div>
+          </div>
+          <div class="game-toolbar">
+            <div class="toolbar-hint"><SvgIcon class="icon" aria-hidden="true" name="icon-keyboard" /><span>方向键移动 <span class="hint-divider">·</span> 空格键暂停</span></div>
+            <div class="toolbar-actions">
+              <button id="pause-button" ref="pauseButton" type="button" class="tool-button" :aria-label="game.status === 'paused' ? '继续游戏' : '暂停游戏'" title="暂停 / 继续（空格键）" :disabled="!active" @click="togglePause"><SvgIcon class="icon" aria-hidden="true" :name="game.status === 'paused' ? 'icon-play' : 'icon-pause'" /></button>
+              <button id="restart-button" type="button" class="tool-button" aria-label="重新开始" title="重新开始" @click="startGame"><SvgIcon class="icon" aria-hidden="true" name="icon-restart" /></button>
+              <span class="toolbar-divider"></span>
+              <button id="sound-button" type="button" class="tool-button" :aria-label="soundLabel" :title="soundLabel" :aria-pressed="soundEnabled" @click="toggleSound"><SvgIcon class="icon" aria-hidden="true" :name="soundEnabled ? 'icon-sound' : 'icon-mute'" /></button>
+            </div>
+          </div>
+        </section>
+
+        <div class="mobile-controls" role="group" aria-label="触屏方向控制">
+          <button type="button" data-direction="up" aria-label="向上" @pointerdown="onDirectionPointer($event, 'up')" @click="onDirectionClick($event, 'up')">↑</button>
+          <div><button v-for="control in mobileDirections" :key="control.direction" type="button" :data-direction="control.direction" :aria-label="control.label" @pointerdown="onDirectionPointer($event, control.direction)" @click="onDirectionClick($event, control.direction)">{{ control.symbol }}</button></div>
+          <p>也可以在棋盘上滑动控制方向</p>
+        </div>
+
+        <aside class="sidebar">
+          <section class="settings-card">
+            <div class="section-heading"><h2>你的游戏，你的节奏</h2><span>01</span></div>
+            <p class="section-description">选一个舒服的速度，出发吧。</p>
+            <div class="difficulty-options" role="group" aria-label="游戏难度">
+              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" :disabled="active" @click="changeLevel(option.level)"><span class="level-icon">{{ option.icon }}</span><span>{{ option.label }}</span></button>
+            </div>
+            <div class="speed-caption"><span class="small-dot"></span><span id="speed-caption">{{ speedCaption }}</span></div>
+            <div class="card-divider"></div>
+            <div class="section-heading"><h2>简单三步，快乐加倍</h2><SvgIcon class="icon muted" aria-hidden="true" name="icon-arrow" /></div>
+            <ol id="game-controls-help" class="instructions">
+              <li><span class="step-number">1</span><div><strong>控制方向</strong><p>方向键或 WASD，带小蛇去探索。</p></div></li>
+              <li><span class="step-number">2</span><div><strong>吃掉小红果</strong><p>每吃一颗 +10 分，也会长大一格。</p></div></li>
+              <li><span class="step-number">3</span><div><strong>记得留条退路</strong><p>别撞到墙壁，也别咬到自己。</p></div></li>
+            </ol>
+            <div class="keyboard-guide" aria-hidden="true"><div class="key-row"><kbd>↑</kbd></div><div class="key-row"><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div><span>或 W / A / S / D</span></div>
+          </section>
+          <section class="break-card">
+            <div class="break-top"><span>BREAK TIME, BEST TIME.</span><SvgIcon class="icon" aria-hidden="true" name="icon-leaf" /></div>
+            <h2>生活偶尔打个结，<br>小蛇只管向前。</h2>
+            <p>今天也要，记得给快乐留一点空间。</p>
+            <SvgIcon class="decorative-snake" viewBox="0 0 300 92" aria-hidden="true" sprite="illustrations" name="decorative-snake" />
+          </section>
+        </aside>
+      </div>
+
+      <footer><span><span class="footer-dot"></span> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <span class="footer-star">＋</span></span></footer>
+    </main>
+    <div id="announcement" class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
+  </div>
+</template>
+
+<style scoped src="./styles.css"></style>

@@ -1,0 +1,168 @@
+:root {
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  color: #293e2e;
+  background: #f5f5ed;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button, input { font: inherit; }
+a { color: inherit; }
+button:focus-visible, a:focus-visible { outline: 3px solid #7d985d; outline-offset: 5px; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+#page-content:focus { outline: none; }
+.skip-link { position: absolute; z-index: 100; top: -60px; left: 20px; background: #fff; padding: 12px 18px; border-radius: 8px; }
+.skip-link:focus { top: 12px; }
+.club-header { background: #f5f5ed; border-bottom: 1px solid #e1e5d8; }
+.club-header-inner { max-width: 1220px; min-height: 94px; padding: 18px 36px; margin: auto; display: flex; align-items: center; gap: 36px; }
+.club-brand { display: flex; gap: 12px; align-items: center; flex-shrink: 0; text-decoration: none; font-size: 18px; font-weight: 750; letter-spacing: 1.4px; }
+.club-brand small { display: block; font-family: Consolas, monospace; margin-top: 5px; color: #8b9381; font-size: 8px; font-weight: 400; letter-spacing: 1.25px; }
+.club-mark { width: 43px; height: 43px; display: grid; place-items: center; background: #315e3b; border-radius: 13px; transform: rotate(-6deg); }
+.club-mark svg { width: 32px; height: 32px; }
+.club-nav { display: flex; gap: 25px; align-items: center; margin-left: auto; font-size: 12px; }
+.club-nav a { position: relative; padding: 10px 0; text-decoration: none; color: #8b9283; white-space: nowrap; }
+.club-nav a.selected { color: #315e3b; font-weight: 650; }
+.club-nav a.selected::after { content: ""; height: 3px; width: 14px; background: #8fa46c; position: absolute; bottom: 0; left: calc(50% - 7px); border-radius: 2px; }
+.club-nav a:hover { color: #315e3b; }
+.club-header-note { font-size: 10px; letter-spacing: .7px; color: #8b9283; display: flex; gap: 8px; align-items: center; margin-left: 34px; }
+.club-header-note i, .hero-pills i, .lobby-footer i { width: 5px; height: 5px; border-radius: 50%; background: #92a575; display: inline-block; }
+.back-home { color: #6e7e60; font-size: 11px; text-decoration: none; padding: 9px 13px; border: 1px solid #dce2d1; border-radius: 7px; white-space: nowrap; }
+.back-home:hover { background: #e8eedc; }
+.back-home span { margin-right: 6px; }
+.lobby { max-width: 1220px; margin: auto; padding: 0 36px; }
+.lobby-hero { display: flex; align-items: center; justify-content: space-between; padding: 61px 0 51px; gap: 35px; }
+.lobby-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 23px; font-family: Consolas, "Microsoft YaHei", monospace; font-size: 9px; letter-spacing: 1.8px; color: #80916e; }
+.lobby-eyebrow > span { height: 2px; width: 20px; background: #8d9f73; }
+.lobby-eyebrow i { font-style: normal; margin: 0 2px; color: #b5beaa; }
+.lobby h1 { margin: 0; font-size: clamp(36px, 4.1vw, 55px); line-height: 1.5; letter-spacing: -1.5px; font-weight: 750; }
+.hero-highlight { position: relative; white-space: nowrap; z-index: 0; }
+.hero-highlight::after { position: absolute; content: ""; bottom: 5px; left: -2px; right: -5px; height: 15px; border-radius: 5px 3px 9px 4px; background: #dce6b4; transform: rotate(-2deg); z-index: -1; }
+.hero-dot { color: #91a66c; }
+.hero-description { color: #87907d; font-size: 12px; line-height: 2; letter-spacing: .5px; margin: 21px 0 19px; }
+.mobile-break { display: none; }
+.hero-pills { display: flex; gap: 19px; font-size: 9px; color: #8b957e; }
+.hero-pills span { display: flex; gap: 6px; align-items: center; }
+.hero-pills i { width: 4px; height: 4px; background: #a4b18c; }
+.hero-stamp { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 202px; height: 218px; border: 1px solid #ccd5b7; border-radius: 100px 100px 85px 85px; outline: 1px dashed #cbd5b4; outline-offset: -9px; transform: rotate(9deg); margin: 7px 62px 0 0; background: #edf0df; color: #7d9066; }
+.stamp-top { font: 8px Consolas, monospace; letter-spacing: 1.7px; margin-top: 5px; }
+.hero-stamp svg { width: 90px; height: 82px; margin: 10px 0 2px; }
+.hero-stamp strong { font-size: 19px; font-weight: 550; letter-spacing: 3px; }
+.stamp-bottom { font: 6px Consolas, monospace; letter-spacing: .8px; margin-top: 13px; }
+.collection-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 21px; padding-top: 23px; border-top: 1px solid #e1e5d7; }
+.collection-heading h2 { display: flex; align-items: center; gap: 11px; margin: 0; font-size: 16px; letter-spacing: .7px; font-weight: 650; }
+.collection-heading h2 span { font: 11px Consolas, monospace; border: 1px solid #dce3cf; border-radius: 5px; padding: 3px 6px; color: #85966d; }
+.collection-heading p { font-size: 10px; color: #99a08f; margin: 0; }
+.collection-heading p span { font: 7px Consolas, monospace; letter-spacing: 1px; margin-left: 14px; }
+.game-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.game-card-link { display: block; overflow: hidden; background: #fdfdf8; border: 1px solid #dfe3d6; border-radius: 14px; text-decoration: none; box-shadow: 0 4px 0 #e8ebdf; transition: transform .25s, box-shadow .25s, border-color .25s; }
+.game-card-link:hover { transform: translateY(-5px); border-color: #bdc9ac; box-shadow: 0 7px 0 #e5e9da, 0 14px 25px #344c2410; }
+.card-art { position: relative; aspect-ratio: 1.5; background: var(--card-background); overflow: hidden; }
+.card-art-top { position: absolute; z-index: 1; top: 16px; left: 18px; right: 18px; display: flex; justify-content: space-between; align-items: center; color: var(--card-color); font: 8px Consolas, monospace; letter-spacing: 1.2px; }
+.card-art-top .category { padding: 4px 7px; border: 1px solid #ffffff9c; border-radius: 5px; background: #ffffff63; font-family: inherit; font-size: 8px; letter-spacing: .6px; }
+.game-card-link:hover .game-artwork { transform: scale(1.025); }
+.card-copy { padding: 25px 23px 0; }
+.card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card-title h3 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+.card-title > span { font: 8px Consolas, monospace; color: #a2aa96; letter-spacing: 1px; }
+.card-tagline { margin: 12px 0 9px; font-size: 11px; color: #69795c; letter-spacing: .4px; }
+.card-description { font-size: 10px; color: #929b86; line-height: 1.9; margin: 0; min-height: 42px; letter-spacing: .3px; }
+.card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 21px; padding: 17px 0 19px; border-top: 1px solid #e9ecdf; }
+.card-controls { display: flex; align-items: center; gap: 6px; font-size: 8px; color: #9ba48e; }
+.card-controls svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.play-link { color: var(--card-color); display: flex; align-items: center; gap: 13px; font-size: 11px; font-weight: 600; }
+.play-arrow { display: grid; place-items: center; height: 29px; width: 29px; background: var(--card-background); border-radius: 50%; font-size: 17px; transition: transform .2s; }
+.game-card-link:hover .play-arrow { transform: rotate(45deg); }
+.lobby-note { display: flex; align-items: center; gap: 17px; margin-top: 35px; padding: 22px 24px; border: 1px dashed #d6ddc7; border-radius: 10px; background: #f0f2e6; }
+.note-plus { display: grid; place-items: center; width: 35px; height: 35px; border: 1px solid #d7dfc7; border-radius: 10px; font-size: 22px; color: #97a67c; flex-shrink: 0; }
+.lobby-note h2 { font-size: 11px; font-weight: 500; color: #788869; letter-spacing: .6px; margin: 0 0 7px; }
+.lobby-note p { font-size: 9px; color: #9aa58b; margin: 0; line-height: 1.8; }
+.note-label { font: 7px Consolas, monospace; letter-spacing: 1.2px; color: #a7b097; margin-left: auto; }
+.lobby-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 30px 0 27px; font-size: 9px; color: #9da58f; }
+.lobby-footer > span { display: flex; gap: 8px; align-items: center; }
+.lobby-footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1.2px; }
+.lobby-footer b { font-size: 17px; margin-left: 9px; font-weight: 400; color: #8da070; }
+@media (min-width: 1500px) {
+  .lobby-hero { padding-top: 74px; padding-bottom: 63px; }
+  .club-header-inner, .lobby { max-width: 1260px; }
+  .card-copy { padding-top: 29px; }
+}
+@media (max-width: 1000px) {
+  .club-header-inner { padding: 18px 26px; gap: 20px; }
+  .club-nav { gap: 18px; }
+  .lobby { padding: 0 26px; }
+  .hero-stamp { margin-right: 25px; width: 178px; height: 198px; }
+  .game-grid { gap: 17px; }
+  .card-copy { padding: 20px 17px 0; }
+  .card-title h3 { font-size: 19px; }
+  .card-title > span { font-size: 7px; letter-spacing: .4px; }
+  .card-tagline { font-size: 10px; }
+  .card-description { min-height: 57px; }
+  .card-bottom { margin-top: 15px; }
+}
+@media (max-width: 760px) {
+  .club-header-inner { min-height: 80px; padding: 15px 22px; gap: 14px; }
+  .club-brand { font-size: 16px; gap: 9px; }
+  .club-mark { width: 37px; height: 37px; border-radius: 11px; }
+  .club-brand small { font-size: 6px; }
+  .club-header-note { display: none; }
+  .club-nav { gap: 15px; font-size: 11px; }
+  .club-nav a:not(:first-child) { display: none; }
+  .back-home { padding: 8px 10px; font-size: 10px; }
+  .lobby { padding: 0 22px; max-width: 560px; }
+  .lobby-hero { padding: 42px 0 33px; position: relative; gap: 0; }
+  .lobby h1 { font-size: 37px; }
+  .lobby-eyebrow { font-size: 7px; letter-spacing: .6px; gap: 7px; margin-bottom: 21px; }
+  .hero-stamp { width: 117px; height: 132px; position: absolute; right: -8px; top: 76px; margin: 0; opacity: .9; }
+  .hero-stamp svg { width: 53px; height: 46px; margin: 5px 0; }
+  .hero-stamp strong { font-size: 11px; letter-spacing: 1.5px; }
+  .stamp-top { font-size: 5px; letter-spacing: .6px; }
+  .stamp-bottom { font-size: 4px; letter-spacing: .1px; margin-top: 9px; }
+  .hero-description { font-size: 11px; margin-top: 21px; line-height: 1.9; letter-spacing: 0; }
+  .mobile-break { display: block; }
+  .hero-pills { gap: 17px; font-size: 8px; }
+  .collection-heading { padding-top: 22px; margin-bottom: 19px; }
+  .collection-heading h2 { font-size: 14px; gap: 8px; }
+  .collection-heading p { font-size: 8px; }
+  .collection-heading p span { display: none; }
+  .game-grid { grid-template-columns: 1fr; gap: 25px; }
+  .card-art { aspect-ratio: 1.7; }
+  .card-copy { padding: 24px 25px 0; }
+  .card-title h3 { font-size: 24px; }
+  .card-title > span { font-size: 9px; letter-spacing: 1px; }
+  .card-tagline { font-size: 12px; }
+  .card-description { font-size: 11px; min-height: 0; }
+  .card-bottom { margin-top: 21px; padding-bottom: 22px; }
+  .card-controls { font-size: 9px; }
+  .play-link { font-size: 12px; }
+  .play-arrow { width: 32px; height: 32px; }
+  .lobby-note { padding: 20px 16px; gap: 12px; margin-top: 29px; }
+  .lobby-note h2 { font-size: 10px; line-height: 1.9; margin-bottom: 3px; }
+  .lobby-note p { font-size: 8px; }
+  .note-label { display: none; }
+  .lobby-footer { font-size: 8px; padding: 26px 0; }
+  .lobby-footer > span:last-child { font-size: 5px; letter-spacing: .3px; }
+  .lobby-footer b { margin-left: 0; font-size: 14px; }
+}
+@media (max-width: 400px) {
+  .lobby { padding: 0 18px; }
+  .club-header-inner { padding-left: 18px; padding-right: 18px; }
+  .club-brand { font-size: 14px; }
+  .club-nav { font-size: 10px; }
+  .back-home { font-size: 9px; }
+  .lobby h1 { font-size: 32px; }
+  .hero-stamp { right: -2px; top: 82px; width: 94px; height: 110px; }
+  .hero-stamp svg { width: 44px; height: 40px; margin: 3px 0; }
+  .stamp-bottom { font-size: 3px; }
+  .hero-stamp strong { font-size: 10px; }
+  .stamp-top { font-size: 4px; }
+  .lobby-eyebrow { font-size: 6px; }
+  .hero-description { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}

@@ -1,0 +1,247 @@
+.minesweeper-game {
+  --mine-ink: #344a36;
+  --mine-green: #5f7850;
+  --mine-muted: #84917b;
+  --mine-border: #e0e5d6;
+  color: var(--mine-ink);
+  background: #f5f5ed;
+  min-height: calc(100vh - 94px);
+  display: flow-root;
+}
+button { font: inherit; border: 0; transition: background .18s, box-shadow .18s, transform .18s; }
+button:focus-visible { outline: 3px solid #7e9464; outline-offset: 3px; }
+.mine-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.mine-shell { max-width: 1192px; margin: auto; padding: 0 30px; }
+.mine-hero { display: flex; justify-content: space-between; align-items: center; padding: 32px 0 29px; }
+.mine-eyebrow { display: flex; align-items: center; gap: 9px; margin: 0 0 13px; font: 9px Consolas, monospace; letter-spacing: 1.8px; color: #82936e; }
+.mine-eyebrow > span { width: 18px; height: 2px; background: #95a779; }
+h1 { font-size: clamp(25px, 3vw, 35px); font-weight: 700; margin: 0 0 13px; line-height: 1.4; letter-spacing: 1px; }
+h1 > span { color: #879878; }
+h1 .mine-dot { color: #8ca266; }
+.mine-description { font-size: 11px; letter-spacing: .7px; color: var(--mine-muted); margin: 0; line-height: 1.9; }
+.mine-mobile-break { display: none; }
+.mine-hero-art { width: 200px; height: 117px; position: relative; margin-right: 37px; }
+.mine-art-orbit { position: absolute; width: 134px; height: 114px; border: 1px dashed #d4ddc4; border-radius: 50%; left: 35px; top: -2px; transform: rotate(-20deg); }
+.mine-art-tile { position: absolute; width: 66px; height: 69px; border-radius: 12px; display: grid; place-items: center; }
+.mine-art-one { left: 27px; top: 13px; transform: rotate(-15deg); background: #eff1e0; color: #72918a; border: 3px solid #fffdf3; box-shadow: 0 4px 0 #dce2ce; font: bold 38px Consolas, monospace; }
+.mine-art-flag { right: 34px; top: 28px; transform: rotate(13deg); background: #98ae80; color: #fff4d4; border: 3px solid #b4c69e; box-shadow: 0 5px 0 #7f966a; }
+.mine-art-flag .mine-icon { width: 34px; height: 34px; stroke-width: 1.6; }
+.mine-art-spark { position: absolute; right: 14px; top: 4px; color: #afbc89; width: 17px; height: 17px; }
+.mine-art-caption { position: absolute; bottom: -10px; left: 15px; font: 6px Consolas, monospace; color: #9ca68a; letter-spacing: 1px; }
+.mine-layout { display: grid; grid-template-columns: minmax(0, 1fr) 282px; align-items: start; gap: 24px; }
+.mine-card, .mine-guide, .mine-record { background: #fdfdf8; border: 1px solid var(--mine-border); border-radius: 15px; box-shadow: 0 4px 0 #e9ecdf; }
+.mine-card { min-width: 0; padding: 24px 26px 0; overflow: hidden; }
+.mine-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mine-game-name { display: flex; align-items: center; gap: 11px; }
+.mine-game-icon { display: grid; place-items: center; width: 37px; height: 37px; border-radius: 10px; background: #edf1e1; color: #7d9365; }
+h2 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: .5px; }
+.mine-game-name > div > span { display: block; margin-top: 6px; color: #929e83; font: 8px Consolas, "Microsoft YaHei", monospace; letter-spacing: .5px; }
+.mine-difficulty { display: flex; background: #eff1e7; border: 1px solid #e7ebdd; padding: 4px; border-radius: 9px; gap: 3px; }
+.mine-difficulty button { color: #89957c; font-size: 11px; background: transparent; border-radius: 6px; padding: 8px 13px; }
+.mine-difficulty button.active { background: #fffef8; color: #547145; box-shadow: 0 2px 5px #3045240d; font-weight: 650; }
+.mine-difficulty button:hover:not(.active) { background: #e4e9d9; }
+.mine-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; margin: 21px 0 17px; padding: 15px 0 13px; border: 1px solid #e8ecde; border-radius: 10px; background: #f5f7ed; }
+.mine-stats > div { padding-left: 24px; }
+.mine-stats > div + div { border-left: 1px solid #dfe5d2; }
+.mine-stat-label { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #849275; margin-bottom: 6px; }
+.mine-stat-label .mine-icon { width: 13px; height: 13px; color: #94a27c; }
+.mine-stats strong { font: 600 27px/1.15 Consolas, monospace; letter-spacing: 1.5px; color: #526847; }
+.mine-stats small { font: 10px "Microsoft YaHei", sans-serif; letter-spacing: 0; color: #94a084; margin-left: 6px; }
+#mine-timer { color: #648477; }
+.mine-board-meta { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 11px; font-size: 9px; color: #96a087; }
+.mine-board-meta > span { display: flex; align-items: center; gap: 7px; }
+.mine-board-meta b { font-weight: 400; margin: 0 2px; }
+#mine-status { color: #7a8d68; }
+#mine-status i { width: 5px; height: 5px; background: #aebba0; border-radius: 50%; }
+#mine-status i.playing, #mine-status i.won { background: #71935c; box-shadow: 0 0 0 3px #79976115; }
+#mine-status i.lost { background: #c2866b; }
+.mine-field { padding: 15px; background: #e9eede; border: 1px solid #dce3cd; border-radius: 11px; }
+.mine-field-easy { background-image: radial-gradient(#bfcca340 .7px, transparent .7px); background-size: 9px 9px; }
+.mine-board-scroll { overflow: auto; padding: 4px 3px 6px; scrollbar-width: thin; scrollbar-color: #b2c29d #e6ecd9; }
+.mine-board { display: grid; grid-template-columns: repeat(var(--mine-cols), minmax(0, 1fr)); gap: 5px; margin: auto; max-width: 365px; user-select: none; }
+.mine-cell { display: grid; place-items: center; padding: 0; width: 100%; aspect-ratio: 1; position: relative; border: 1px solid #aabb94; border-top-color: #d1dec1; border-radius: 5px; background: #b6c6a2; box-shadow: 0 3px 0 #98ad80, inset 0 1px 0 #d6e1c980; color: #f9f4d9; font: 700 19px Consolas, monospace; touch-action: manipulation; }
+.mine-cell::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: #e4eddb80; }
+.mine-cell.revealed::before, .mine-cell.flagged::before { display: none; }
+.mine-cell:not(.revealed):not([aria-disabled="true"]):hover { background: #c5d3b3; border-color: #97ac7d; transform: translateY(-1px); box-shadow: 0 4px 0 #98ad80; }
+.mine-cell:not(.revealed):not([aria-disabled="true"]):active { transform: translateY(2px); box-shadow: 0 1px 0 #98ad80; }
+.mine-cell:focus-visible { z-index: 1; outline-offset: 1px; outline-color: #456a39; }
+.mine-cell.revealed { box-shadow: none; background: #f3f5e9; border: 1px solid #dce3cf; }
+.mine-cell[aria-disabled="true"] { cursor: default; }
+.mine-cell .mine-icon { width: 20px; height: 20px; }
+.mine-cell.flagged:not(.revealed) { background: #91a87a; border-color: #a5b994; box-shadow: 0 3px 0 #7b9565; }
+.mine-cell.flagged::before { display: none; }
+.mine-cell[data-number="1"] { color: #598a8d; }
+.mine-cell[data-number="2"] { color: #648646; }
+.mine-cell[data-number="3"] { color: #c08262; }
+.mine-cell[data-number="4"] { color: #8b78a2; }
+.mine-cell[data-number="5"] { color: #b16b73; }
+.mine-cell[data-number="6"] { color: #528d86; }
+.mine-cell[data-number="7"] { color: #726952; }
+.mine-cell[data-number="8"] { color: #777c76; }
+.mine-empty-dot { width: 3px; height: 3px; background: #ced8bd; border-radius: 50%; }
+.mine-cell.show-mine { color: #879476; background: #e4e9d9; }
+.mine-cell.exploded { color: #aa5e45; background: #efd2be; border-color: #d8a58b; box-shadow: inset 0 0 0 2px #e7ba9e; }
+.mine-cell.wrong-flag { background: #e9d7c4; color: #b28365; border-color: #d4b698; box-shadow: none; }
+.mine-cell.wrong-flag::after { content: ""; position: absolute; width: 75%; height: 2px; background: #ac6152; transform: rotate(-45deg); }
+.mine-board-dense .mine-board { grid-template-columns: repeat(var(--mine-cols), 30px); max-width: none; width: max-content; gap: 4px; }
+.mine-board-dense { max-height: 550px; }
+.mine-board-dense .mine-cell { font-size: 17px; border-radius: 4px; }
+.mine-board-dense .mine-cell .mine-icon { width: 17px; height: 17px; }
+.mine-scroll-tip { text-align: center; color: #7e906c; font-size: 9px; margin: 12px 0 1px; line-height: 1.7; }
+.mine-feedback { min-height: 49px; padding: 12px 0; display: flex; align-items: center; justify-content: center; gap: 7px; color: #879576; font-size: 10px; line-height: 1.8; }
+.mine-feedback .mine-icon { width: 15px; height: 15px; color: #94a67c; }
+.mine-feedback-won { color: #51723e; font-weight: 600; }
+.mine-feedback-won .mine-icon { color: #a5924e; }
+.mine-feedback-lost { color: #b0785b; }
+.mine-feedback-lost .mine-icon { color: #b0785b; }
+.mine-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 21px; }
+.mine-mode { display: flex; background: #f1f3e9; border: 1px solid #e3e8d8; border-radius: 9px; padding: 3px; gap: 3px; }
+.mine-mode button { display: flex; gap: 7px; align-items: center; justify-content: center; font-size: 11px; color: #919c85; border-radius: 6px; padding: 8px 15px; background: transparent; }
+.mine-mode button.active { background: #e0e8d0; color: #5e7b48; }
+.mine-mode .mine-icon { width: 15px; height: 15px; }
+.mine-primary { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 41px; padding: 11px 22px; background: #607c4d; color: #fffef3; border: 1px solid #557044; border-radius: 8px; font-size: 11px; letter-spacing: .7px; box-shadow: 0 3px 0 #48613a; }
+.mine-primary:hover { background: #526e40; }
+.mine-primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #48613a; }
+.mine-primary .mine-icon { width: 15px; height: 15px; }
+.mine-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 -26px; padding: 13px 26px; background: #f8f9f1; border-top: 1px solid #e9ecdf; color: #8c987e; font-size: 9px; }
+.mine-card-foot > span { display: flex; align-items: center; gap: 6px; }
+.mine-card-foot .mine-icon { width: 13px; height: 13px; }
+.mine-foot-divider { margin: 0 5px; color: #bdc5ae; }
+.mine-sidebar { display: flex; flex-direction: column; gap: 19px; }
+.mine-guide { padding: 23px 22px 0; }
+.mine-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mine-section-title h2 { display: flex; gap: 7px; align-items: center; font-size: 12px; letter-spacing: .4px; }
+.mine-section-title > span { font: 7px Consolas, monospace; letter-spacing: 1px; color: #a0a990; }
+.mine-guide ol { list-style: none; padding: 0; margin: 26px 0 20px; display: flex; flex-direction: column; gap: 22px; }
+.mine-guide li { display: flex; align-items: flex-start; gap: 12px; }
+.mine-step { background: #edf1e1; border: 1px solid #e3e8d5; color: #8b9c72; font: 10px Consolas, monospace; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; flex-shrink: 0; }
+.mine-guide h3 { font-size: 11px; font-weight: 550; margin: 4px 0 8px; color: #5e7550; }
+.mine-guide li p { margin: 0; font-size: 10px; line-height: 1.95; color: #8b967d; }
+.mine-example { display: grid; grid-template-columns: repeat(3, 22px); gap: 3px; margin-top: 12px; padding: 6px; background: #edf1e3; width: max-content; border-radius: 7px; border: 1px solid #e3e9d6; transform: rotate(-3deg); }
+.mine-example > * { background: #c4d1b0; height: 22px; border-radius: 3px; display: grid; place-items: center; color: #fff9df; }
+.mine-example .mine-icon { width: 14px; height: 14px; }
+.mine-example b { font: 700 16px Consolas, monospace; color: #6a8650; background: #fffdf2; }
+.mine-guide-tip { display: flex; gap: 9px; border-top: 1px dashed #dce3cf; margin: 0 -22px; padding: 14px 20px; align-items: flex-start; }
+.mine-guide-tip .mine-icon { width: 14px; height: 14px; margin-top: 2px; color: #9bab7a; }
+.mine-guide-tip p { margin: 0; font-size: 9px; line-height: 1.9; color: #93a080; }
+.mine-record { padding: 21px 22px 16px; }
+.mine-record .mine-section-title .mine-icon { width: 16px; height: 16px; color: #b0a16b; }
+.mine-section-title .mine-record-level { font: 9px "Microsoft YaHei", sans-serif; letter-spacing: 0; padding: 4px 8px; border-radius: 5px; background: #edf1e2; color: #8fa375; }
+.mine-record-value { display: flex; align-items: baseline; gap: 10px; margin: 17px 0 10px; }
+.mine-record-value strong { font: 500 36px/1 Consolas, monospace; letter-spacing: 2px; color: #7c9462; }
+.mine-record-value > span { font-size: 9px; color: #a0ab8f; }
+.mine-record > p { color: #959f86; font-size: 9px; margin: 0; line-height: 1.8; }
+.mine-record-foot { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e9edde; display: flex; align-items: center; justify-content: space-between; font-size: 8px; color: #a0aa92; }
+.mine-record-foot i { width: 5px; height: 5px; border-radius: 50%; background: #a2b78b; }
+.mine-break-note { position: relative; border: 1px dashed #d4dec1; border-radius: 13px; background: #edf1df; padding: 23px 22px; overflow: hidden; }
+.mine-break-note > span { font: 6px Consolas, monospace; color: #a1ae89; letter-spacing: 1.4px; }
+.mine-break-note h3 { font-size: 13px; color: #7c915e; font-weight: 550; margin: 14px 0 10px; }
+.mine-break-note p { margin: 0; font-size: 9px; line-height: 1.9; color: #96a27e; }
+.mine-clover { position: absolute; right: 10px; top: 21px; width: 74px; height: 74px; transform: rotate(14deg); opacity: .85; }
+.mine-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 27px 0; font-size: 9px; color: #9ba58d; }
+.mine-footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1px; }
+#mine-keyboard-help { font-size: 8px; }
+kbd { font: inherit; background: #f9faf3; border: 1px solid #dfe5d3; border-bottom-width: 2px; border-radius: 4px; padding: 3px 5px; margin: 0 4px 0 10px; }
+.mine-dialog { width: min(390px, calc(100vw - 32px)); border: 1px solid #dce3ce; border-radius: 18px; padding: 28px; color: #536a44; background: #fcfcf5; box-shadow: 0 20px 80px #344a3626; }
+.mine-dialog::backdrop { background: #34442a55; backdrop-filter: blur(4px); }
+.mine-dialog-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: #e8eedb; color: #8b9f6e; margin-bottom: 18px; }
+.mine-dialog h2 { font-size: 20px; }
+.mine-dialog p { font-size: 11px; color: #8b987b; line-height: 2; margin: 14px 0 25px; }
+.mine-dialog > div { display: flex; gap: 10px; justify-content: flex-end; }
+.mine-secondary { font-size: 11px; background: #eff2e6; border: 1px solid #dfe6d0; color: #849571; padding: 10px 17px; border-radius: 8px; }
+.mine-secondary:hover { background: #e4ebd6; }
+@media (max-width: 1000px) {
+  .mine-shell { padding: 0 24px; }
+  .mine-layout { grid-template-columns: minmax(0, 1fr) 248px; gap: 18px; }
+  .mine-card { padding: 21px 20px 0; }
+  .mine-card-foot { margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+  .mine-game-name > div > span { font-size: 7px; }
+  .mine-difficulty button { padding: 8px 10px; }
+  .mine-stats > div { padding-left: 15px; }
+  .mine-guide, .mine-record { padding-left: 18px; padding-right: 18px; }
+  .mine-guide-tip { margin-left: -18px; margin-right: -18px; }
+  .mine-guide li { gap: 9px; }
+  .mine-hero-art { margin-right: 15px; }
+  .mine-section-title > span { font-size: 6px; letter-spacing: .5px; }
+  .mine-footer > span:last-child { display: none; }
+}
+@media (max-width: 820px) {
+  .mine-layout { grid-template-columns: 1fr; }
+  .mine-shell { max-width: 680px; }
+  .mine-hero-art { transform: scale(.8); transform-origin: right center; width: 170px; margin-right: 0; }
+  h1 { font-size: 27px; letter-spacing: 0; }
+  .mine-eyebrow { font-size: 7px; letter-spacing: 1px; }
+  .mine-description { font-size: 10px; letter-spacing: 0; }
+  .mine-sidebar { display: grid; grid-template-columns: 1.1fr 1fr; gap: 17px; }
+  .mine-guide { grid-row: span 2; }
+  .mine-break-note { align-self: start; }
+  .mine-field-easy .mine-board { max-width: 365px; }
+}
+@media (max-width: 540px) {
+  .mine-shell { padding: 0 16px; }
+  .mine-hero { padding: 26px 0 25px; position: relative; }
+  h1 { font-size: 27px; line-height: 1.5; margin-bottom: 12px; }
+  .mine-mobile-break { display: block; }
+  .mine-eyebrow { font-size: 6px; letter-spacing: 1px; gap: 7px; margin-bottom: 11px; }
+  .mine-description { font-size: 9px; max-width: 290px; }
+  .mine-hero-art { position: absolute; right: -1px; top: 41px; transform: scale(.65); transform-origin: right top; width: 175px; opacity: .9; }
+  .mine-art-caption { display: none; }
+  .mine-card { padding: 18px 14px 0; border-radius: 13px; }
+  .mine-heading { gap: 6px; }
+  .mine-game-name { gap: 8px; }
+  .mine-game-name h2 { font-size: 13px; }
+  .mine-game-icon { width: 30px; height: 30px; border-radius: 8px; }
+  .mine-game-icon .mine-icon { width: 17px; height: 17px; }
+  .mine-game-name > div > span { font-size: 6px; letter-spacing: 0; margin-top: 5px; }
+  .mine-difficulty { padding: 3px; gap: 0; border-radius: 7px; }
+  .mine-difficulty button { padding: 8px 9px; font-size: 10px; }
+  .mine-stats { margin-top: 18px; padding: 13px 0 12px; }
+  .mine-stats > div { padding-left: 11px; }
+  .mine-stat-label { font-size: 8px; gap: 4px; margin-bottom: 7px; }
+  .mine-stat-label .mine-icon { width: 11px; height: 11px; }
+  .mine-stats strong { font-size: 23px; letter-spacing: .5px; }
+  .mine-stats small { font-size: 8px; margin-left: 3px; }
+  .mine-board-meta { font-size: 8px; }
+  .mine-board-meta > span { gap: 5px; }
+  .mine-field { padding: 9px 7px; border-radius: 9px; }
+  .mine-board { gap: 4px; }
+  .mine-cell { border-radius: 4px; font-size: 17px; }
+  .mine-cell .mine-icon { width: 17px; height: 17px; }
+  .mine-feedback { font-size: 9px; gap: 5px; padding: 12px 2px; min-height: 52px; }
+  .mine-feedback .mine-icon { width: 13px; height: 13px; }
+  .mine-toolbar { margin-bottom: 19px; }
+  .mine-mode button { padding: 9px 12px; font-size: 10px; gap: 5px; }
+  .mine-mode .mine-icon { width: 14px; height: 14px; }
+  .mine-primary { font-size: 10px; padding: 10px 15px; gap: 7px; }
+  .mine-card-foot { margin: 0 -14px; padding: 12px 14px; font-size: 8px; }
+  .mine-sidebar { grid-template-columns: 1fr; gap: 16px; }
+  .mine-guide { grid-row: auto; padding: 21px 20px 0; }
+  .mine-guide ol { gap: 18px; margin-top: 22px; }
+  .mine-guide li { gap: 12px; }
+  .mine-guide li p { font-size: 11px; }
+  .mine-guide h3 { font-size: 12px; }
+  .mine-guide-tip { margin: 0 -20px; padding: 13px 20px; }
+  .mine-guide-tip p { font-size: 10px; }
+  .mine-record { padding: 21px 20px 16px; }
+  .mine-break-note { padding-left: 20px; }
+  .mine-clover { top: 17px; right: 30px; width: 89px; height: 89px; }
+  .mine-section-title h2 { font-size: 13px; }
+  .mine-section-title > span { font-size: 7px; }
+  .mine-footer { justify-content: center; margin: 24px 0; }
+  #mine-keyboard-help { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+@media (max-width: 360px) {
+  .mine-shell { padding: 0 11px; }
+  .mine-card { padding-left: 11px; padding-right: 11px; }
+  .mine-card-foot { margin-left: -11px; margin-right: -11px; }
+  .mine-game-icon { display: none; }
+  .mine-hero-art { transform: scale(.5); right: -5px; }
+  .mine-cell { font-size: 15px; }
+  .mine-cell .mine-icon { width: 15px; height: 15px; }
+  .mine-stats > div { padding-left: 8px; }
+  .mine-stat-label { font-size: 7px; }
+  .mine-mode button { padding-left: 10px; padding-right: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
