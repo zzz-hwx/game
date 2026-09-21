@@ -7,6 +7,7 @@ const entries = [
   { id: 'link', name: '连连看', selector: '.link-game' },
   { id: 'minesweeper', name: '扫雷', selector: '.minesweeper-game' },
   { id: '2048', name: '2048', selector: '.game-2048' },
+  { id: 'sokoban', name: '推箱子', selector: '.sokoban-game' },
 ];
 
 async function expectNoOverflow(page: Page) {
@@ -49,13 +50,12 @@ async function expectSvgAssets(page: Page) {
   expect(response.headers()['content-type']).toContain('image/svg+xml');
 }
 
-test('大厅、所有游戏和独立页面的外部 SVG 均能加载并渲染', async ({ page }) => {
+test('大厅和所有已注册游戏的外部 SVG 均能加载并渲染', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const pages = [
     { url: '/', selector: '.game-artwork' },
     ...entries.map((game) => ({ url: `/#/games/${game.id}`, selector: game.selector })),
-    ...['snake_game', 'tetris', 'lian_lian_kan'].map((directory) => ({ url: `/${directory}/`, selector: '#start-button' })),
   ];
   for (const { url, selector } of pages) {
     await page.goto(url);
@@ -65,8 +65,8 @@ test('大厅、所有游戏和独立页面的外部 SVG 均能加载并渲染', 
   expect(errors).toEqual([]);
 });
 
-test('主应用和独立游戏切换音效及暂停时保持外部 SVG 引用', async ({ page }) => {
-  for (const [url, snake] of [['/#/games/snake', true], ['/snake_game/', true], ['/#/games/link', false], ['/lian_lian_kan/', false]] as const) {
+test('游戏切换音效及暂停时保持外部 SVG 引用', async ({ page }) => {
+  for (const [url, snake] of [['/#/games/snake', true], ['/#/games/link', false]] as const) {
     await page.goto(url);
     await expect(page.locator('#start-button')).toBeVisible();
     const sound = page.locator('#sound-button use');

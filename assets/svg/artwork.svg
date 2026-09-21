@@ -11,6 +11,15 @@
     <path d="M60 52v13m-6-6h12m233 106v13m-6-6h12m-120-3 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="none" stroke="#a6b581" stroke-width="1.5"/>
     <text x="49" y="214" fill="#8e9c71" font-size="8" letter-spacing="2">SMALL NUMBERS. BIG JOY.</text>
   </symbol>
+  <symbol id="sokoban" viewBox="0 0 360 240">
+    <g stroke="#dcdcc5" stroke-width=".7" opacity=".65"><path d="M20 48h320M20 84h320M20 120h320M20 156h320M20 192h320M56 20v190M92 20v190M128 20v190M164 20v190M200 20v190M236 20v190M272 20v190M308 20v190"/></g>
+    <g transform="translate(77 66) rotate(-9 52 52)"><rect y="6" width="101" height="101" rx="12" fill="#c6ad80"/><rect width="101" height="101" rx="12" fill="#e2c18c" stroke="#f5dfb3" stroke-width="5"/><rect x="13" y="13" width="75" height="75" rx="3" fill="none" stroke="#b79766" stroke-width="3"/><path d="m15 15 71 71m0-71L15 86" stroke="#b79766" stroke-width="10"/><path d="m18 14 71 71m-7-71L11 85" stroke="#efd7aa" stroke-width="2"/></g>
+    <circle cx="251" cy="127" r="34" fill="#e4e7c9" stroke="#aab883" stroke-width="2" stroke-dasharray="5 5"/><circle cx="251" cy="127" r="15" fill="#b9c596"/>
+    <path d="M188 127h17m-6-6 6 6-6 6" fill="none" stroke="#9aa875" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(224 49) rotate(8)"><rect width="32" height="31" rx="6" fill="#b5c3a0"/><path d="M5 6h22" stroke="#dce4c9" stroke-width="2"/><path d="M5 26h22" stroke="#95aa7f" stroke-width="3"/><rect x="36" width="32" height="31" rx="6" fill="#b5c3a0"/><path d="M41 6h22" stroke="#dce4c9" stroke-width="2"/><path d="M41 26h22" stroke="#95aa7f" stroke-width="3"/></g>
+    <path d="M50 57v12m-6-6h12M309 161v12m-6-6h12" stroke="#a1af83" stroke-width="1.5"/>
+    <text x="49" y="214" fill="#969b79" font-size="8" letter-spacing="2">EVERYTHING IN ITS PLACE.</text>
+  </symbol>
   <symbol id="default" viewBox="0 0 360 240">
       <rect x="100" y="55" width="160" height="130" rx="35" fill="currentColor" opacity=".12" />
       <path d="M132 100h40m-20-20v40" stroke="currentColor" stroke-width="8" stroke-linecap="round" />

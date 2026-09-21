@@ -74,4 +74,16 @@ export const games: GameDefinition[] = [
     background: '#eef0dd',
     component: () => import('./2048/Game2048.vue'),
   },
+  {
+    id: 'sokoban',
+    name: '推箱子',
+    englishName: 'SOKOBAN',
+    tagline: '推开小烦恼，让快乐归位。',
+    description: '一个小仓库，几个小箱子。换个角度想想，事情总会井井有条。',
+    category: '逻辑益智',
+    controls: '方向键 / 触屏',
+    color: '#8d7952',
+    background: '#f0ecdc',
+    component: () => import('./sokoban/SokobanGame.vue'),
+  },
 ];
