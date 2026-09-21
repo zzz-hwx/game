@@ -98,4 +98,16 @@ export const games: GameDefinition[] = [
     background: '#f2ecd5',
     component: () => import('./pacman/PacmanGame.vue'),
   },
+  {
+    id: 'gomoku',
+    name: '五子棋',
+    englishName: 'GOMOKU',
+    tagline: '落下一点从容，连起小胜利。',
+    description: '在一黑一白之间，给思绪放个假。与电脑切磋，或和朋友共享一局好时光。',
+    category: '经典棋局',
+    controls: '鼠标 / 触屏 / 方向键',
+    color: '#697858',
+    background: '#ecebdc',
+    component: () => import('./gomoku/GomokuGame.vue'),
+  },
 ];

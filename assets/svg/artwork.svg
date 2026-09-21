@@ -42,6 +42,22 @@
     </g>
     <text x="49" y="214" fill="#968047" font-size="8" letter-spacing="2">ONE BITE. A LITTLE BRIGHTER.</text>
   </symbol>
+  <symbol id="gomoku" viewBox="0 0 360 240">
+    <circle cx="183" cy="120" r="92" fill="none" stroke="#d2d9bd" stroke-dasharray="4 6"/>
+    <g transform="translate(99 45) rotate(-9 82 73)">
+      <rect y="6" width="164" height="147" rx="12" fill="#c7bda1"/>
+      <rect width="164" height="147" rx="12" fill="#eee2c7" stroke="#faf5e6" stroke-width="4"/>
+      <path d="M22 22h120M22 46h120M22 70h120M22 94h120M22 118h120M22 22v96M46 22v96M70 22v96M94 22v96M118 22v96M142 22v96" fill="none" stroke="#b9ad8d" stroke-width="1"/>
+      <g fill="#414e39" stroke="#6b775b" stroke-width="1.5"><circle cx="46" cy="46" r="10"/><circle cx="70" cy="70" r="10"/><circle cx="94" cy="94" r="10"/><circle cx="118" cy="118" r="10"/></g>
+      <g fill="#fffcf0" stroke="#cec6ad" stroke-width="1.5"><circle cx="70" cy="46" r="10"/><circle cx="94" cy="70" r="10"/><circle cx="118" cy="94" r="10"/></g>
+      <path d="m46 46 72 72" stroke="#b6c88e" stroke-width="1.5" stroke-dasharray="3 4"/>
+      <rect x="115" y="115" width="6" height="6" rx="1" fill="#ce986f"/>
+    </g>
+    <circle cx="69" cy="149" r="18" fill="#d3d8c2"/><circle cx="69" cy="145" r="18" fill="#4f5e43" stroke="#7b8967" stroke-width="2"/>
+    <circle cx="280" cy="76" r="17" fill="#d3d8c2"/><circle cx="280" cy="72" r="17" fill="#fffdf1" stroke="#e0dcc9" stroke-width="2"/>
+    <path d="M63 73v12m-6-6h12M300 160v12m-6-6h12" stroke="#9aa984" stroke-width="1.5"/>
+    <text x="49" y="214" fill="#8b9976" font-size="8" letter-spacing="2">FIVE IN A LITTLE ROW.</text>
+  </symbol>
   <symbol id="default" viewBox="0 0 360 240">
       <rect x="100" y="55" width="160" height="130" rx="35" fill="currentColor" opacity=".12" />
       <path d="M132 100h40m-20-20v40" stroke="currentColor" stroke-width="8" stroke-linecap="round" />
