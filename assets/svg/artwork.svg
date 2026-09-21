@@ -58,6 +58,20 @@
     <path d="M63 73v12m-6-6h12M300 160v12m-6-6h12" stroke="#9aa984" stroke-width="1.5"/>
     <text x="49" y="214" fill="#8b9976" font-size="8" letter-spacing="2">FIVE IN A LITTLE ROW.</text>
   </symbol>
+  <symbol id="breakout" viewBox="0 0 360 240">
+    <g fill="none" stroke="#ded5c1" stroke-width=".7"><path d="M24 48h312M24 80h312M24 112h312M24 144h312M24 176h312M52 24v172M84 24v172M116 24v172M148 24v172M180 24v172M212 24v172M244 24v172M276 24v172M308 24v172"/></g>
+    <g transform="translate(68 59) rotate(-7 110 60)" stroke-width="2">
+      <g fill="#cc9d89" stroke="#e6bba4"><rect width="47" height="21" rx="4"/><rect x="53" width="47" height="21" rx="4"/><rect x="106" width="47" height="21" rx="4"/><rect x="164" y="-9" width="47" height="21" rx="4" transform="rotate(12 188 1)"/></g>
+      <g fill="#d4bb86" stroke="#e7d4ac"><rect y="27" width="47" height="21" rx="4"/><rect x="53" y="27" width="47" height="21" rx="4"/><rect x="106" y="27" width="47" height="21" rx="4"/><rect x="159" y="27" width="47" height="21" rx="4"/></g>
+      <g fill="#a4b58b" stroke="#c6d2af"><rect y="54" width="47" height="21" rx="4"/><rect x="53" y="54" width="47" height="21" rx="4"/><rect x="159" y="54" width="47" height="21" rx="4"/></g>
+    </g>
+    <path d="m158 130 39 42 46-65" fill="none" stroke="#adad88" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <circle cx="238" cy="117" r="9" fill="#dabf80" stroke="#faf0cb" stroke-width="2"/>
+    <rect x="157" y="179" width="81" height="12" rx="6" fill="#94a57b"/>
+    <rect x="157" y="175" width="81" height="12" rx="6" fill="#a7b88b" stroke="#d2ddba" stroke-width="2"/>
+    <path d="M184 179h26M307 154v12m-6-6h12M44 95v10m-5-5h10" stroke="#a3ac87" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="49" y="214" fill="#998968" font-size="8" letter-spacing="2">A LITTLE BOUNCE OF JOY.</text>
+  </symbol>
   <symbol id="default" viewBox="0 0 360 240">
       <rect x="100" y="55" width="160" height="130" rx="35" fill="currentColor" opacity=".12" />
       <path d="M132 100h40m-20-20v40" stroke="currentColor" stroke-width="8" stroke-linecap="round" />

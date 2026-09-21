@@ -110,4 +110,16 @@ export const games: GameDefinition[] = [
     background: '#ecebdc',
     component: () => import('./gomoku/GomokuGame.vue'),
   },
+  {
+    id: 'breakout',
+    name: '打砖块',
+    englishName: 'BREAKOUT',
+    tagline: '把小烦恼，一块块击碎。',
+    description: '接住一点快乐，弹走一点压力。在小球的来回之间，给心情腾出一点空间。',
+    category: '经典街机',
+    controls: '鼠标 / 方向键 / 触屏',
+    color: '#9a8163',
+    background: '#f0e8d9',
+    component: () => import('./breakout/BreakoutGame.vue'),
+  },
 ];

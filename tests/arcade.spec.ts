@@ -10,6 +10,7 @@ const entries = [
   { id: 'sokoban', name: '推箱子', selector: '.sokoban-game' },
   { id: 'pacman', name: '吃豆人', selector: '.pacman-game' },
   { id: 'gomoku', name: '五子棋', selector: '.gomoku-game' },
+  { id: 'breakout', name: '打砖块', selector: '.breakout-game' },
 ];
 
 async function expectNoOverflow(page: Page) {
