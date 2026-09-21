@@ -20,6 +20,28 @@
     <path d="M50 57v12m-6-6h12M309 161v12m-6-6h12" stroke="#a1af83" stroke-width="1.5"/>
     <text x="49" y="214" fill="#969b79" font-size="8" letter-spacing="2">EVERYTHING IN ITS PLACE.</text>
   </symbol>
+  <symbol id="pacman" viewBox="0 0 360 240">
+    <g fill="none" stroke="#c7d4ac" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M58 104V71q0-16 16-16h212q16 0 16 16v100q0 16-16 16H74q-16 0-16-16v-29"/>
+      <path d="M84 80h46m28 0h44v18m28-18h46v27M84 162h46v-12m28 12h44v-16m28 0h18m-86-48h24"/>
+    </g>
+    <path d="M58 104V71q0-16 16-16h212q16 0 16 16v100q0 16-16 16H74q-16 0-16-16v-29" fill="none" stroke="#e1e8cb" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M108 122l22-15a27 27 0 1 0 0 30Z" fill="#d9b75e" stroke="#f3dda0" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="109" cy="107" r="2.5" fill="#86713f"/>
+    <g fill="#d4bd80"><circle cx="151" cy="122" r="3.5"/><circle cx="173" cy="122" r="3.5"/><circle cx="195" cy="122" r="3.5"/><circle cx="217" cy="162" r="3.5"/><circle cx="241" cy="162" r="3.5"/></g>
+    <circle cx="276" cy="127" r="6" fill="#f9f1cc" stroke="#d8c68c" stroke-width="1.5"/>
+    <g transform="translate(216 103)">
+      <path d="M0 30V15a15 15 0 0 1 30 0v15l-5-4-5 4-5-4-5 4-5-4Z" fill="#dba5a5" stroke="#efd0c8" stroke-width="1.5" stroke-linejoin="round"/>
+      <ellipse cx="10" cy="14" rx="4" ry="5" fill="#fff9e9"/><ellipse cx="21" cy="14" rx="4" ry="5" fill="#fff9e9"/>
+      <g fill="#797b70"><circle cx="9" cy="14" r="2"/><circle cx="20" cy="14" r="2"/></g>
+    </g>
+    <g transform="translate(262 145)">
+      <path d="M0 30V15a15 15 0 0 1 30 0v15l-5-4-5 4-5-4-5 4-5-4Z" fill="#a9c2ca" stroke="#d4e2df" stroke-width="1.5" stroke-linejoin="round"/>
+      <ellipse cx="10" cy="14" rx="4" ry="5" fill="#fff9e9"/><ellipse cx="21" cy="14" rx="4" ry="5" fill="#fff9e9"/>
+      <g fill="#6e8280"><circle cx="9" cy="14" r="2"/><circle cx="20" cy="14" r="2"/></g>
+    </g>
+    <text x="49" y="214" fill="#968047" font-size="8" letter-spacing="2">ONE BITE. A LITTLE BRIGHTER.</text>
+  </symbol>
   <symbol id="default" viewBox="0 0 360 240">
       <rect x="100" y="55" width="160" height="130" rx="35" fill="currentColor" opacity=".12" />
       <path d="M132 100h40m-20-20v40" stroke="currentColor" stroke-width="8" stroke-linecap="round" />

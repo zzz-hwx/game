@@ -8,6 +8,7 @@ const entries = [
   { id: 'minesweeper', name: '扫雷', selector: '.minesweeper-game' },
   { id: '2048', name: '2048', selector: '.game-2048' },
   { id: 'sokoban', name: '推箱子', selector: '.sokoban-game' },
+  { id: 'pacman', name: '吃豆人', selector: '.pacman-game' },
 ];
 
 async function expectNoOverflow(page: Page) {

@@ -86,4 +86,16 @@ export const games: GameDefinition[] = [
     background: '#f0ecdc',
     component: () => import('./sokoban/SokobanGame.vue'),
   },
+  {
+    id: 'pacman',
+    name: '吃豆人',
+    englishName: 'PAC-MAN',
+    tagline: '一口一个，吃掉小烦恼。',
+    description: '在迷宫里收集快乐，和小幽灵玩一场追逐游戏。吃下能量豆，勇敢反击。',
+    category: '经典街机',
+    controls: '方向键 / 触屏',
+    color: '#968047',
+    background: '#f2ecd5',
+    component: () => import('./pacman/PacmanGame.vue'),
+  },
 ];
