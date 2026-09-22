@@ -195,11 +195,26 @@ function preview(target: HTMLCanvasElement | null, type: PieceType | null | unde
   ctx.globalAlpha = 1;
 }
 
+function readBest(): number {
+  try {
+    const saved = Number(localStorage.getItem('between-blocks-best'));
+    return Number.isFinite(saved) ? Math.max(0, saved) : 0;
+  } catch { return 0; /* Storage may be unavailable. */ }
+}
+
+function onStorage(event: StorageEvent): void {
+  if (disposed || (event.key !== 'between-blocks-best' && event.key !== null)) return;
+  try {
+    if (event.storageArea === localStorage) best.value = Math.max(best.value, readBest());
+  } catch { /* Storage access may have been revoked. */ }
+}
+
 function render(): void {
   if (disposed) return;
   drawBoard();
   if (game.score > best.value) {
-    best.value = game.score;
+    // Another page may have saved a record before its storage event reaches us.
+    best.value = Math.max(game.score, readBest());
     try { localStorage.setItem('between-blocks-best', String(best.value)); } catch { /* Storage may be unavailable. */ }
   }
   nextCanvases.forEach((canvas, index) => preview(canvas.value, game.queue[index], index ? 0.7 : 1));
@@ -252,7 +267,7 @@ function act(action: Action): void {
   if (action === 'rotate') changed = game.rotate();
   if (action === 'down') { changed = game.step(true); elapsed = 0; }
   if (action === 'drop') { changed = game.hardDrop(); elapsed = 0; }
-  if (action === 'hold') { changed = game.hold(); elapsed = 0; }
+  if (action === 'hold') changed = game.hold();
   if (action === 'tick') changed = game.step();
   if (!changed) return;
   if (previousPiece !== game.active && action !== 'rotate') elapsed = 0;
@@ -408,15 +423,13 @@ function frame(time: number): void {
 }
 
 onMounted(() => {
-  try {
-    const saved = Number(localStorage.getItem('between-blocks-best'));
-    best.value = Number.isFinite(saved) ? Math.max(0, saved) : 0;
-  } catch { /* The game also works without storage access. */ }
+  best.value = readBest();
   context = boardCanvas.value?.getContext('2d') ?? null;
   render();
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('blur', autoPause);
+  window.addEventListener('storage', onStorage);
   frameId = requestAnimationFrame(frame);
 });
 
@@ -427,6 +440,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeyDown);
   document.removeEventListener('visibilitychange', onVisibilityChange);
   window.removeEventListener('blur', autoPause);
+  window.removeEventListener('storage', onStorage);
   resumeAfterHelp = false;
   resumeAfterRestart = false;
   helpDialog.value?.close();

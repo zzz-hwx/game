@@ -39,7 +39,27 @@ function updateTime(): void {
   elapsed.value = Math.floor((performance.now() - startedAt) / 1000);
 }
 
+function loadRecords(): void {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem('little-break-minesweeper-records') || '{}');
+    if (saved !== null && typeof saved === 'object') {
+      for (const key of Object.keys(levels) as Level[]) {
+        const value: unknown = Reflect.get(saved, key);
+        if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
+          const previous = records[key];
+          records[key] = previous === null ? value : Math.min(previous, value);
+        }
+      }
+    }
+  } catch { storageAvailable.value = false; }
+}
+
+function onStorage(event: StorageEvent): void {
+  if (event.key === 'little-break-minesweeper-records' && event.storageArea === localStorage) loadRecords();
+}
+
 function saveRecord(): void {
+  loadRecords();
   const previous = records[game.value.level];
   if (previous !== null && elapsed.value >= previous) return;
   newBest.value = true;
@@ -114,18 +134,15 @@ function onCellKey(event: KeyboardEvent, index: number): void {
 }
 
 onMounted(() => {
-  try {
-    const saved: unknown = JSON.parse(localStorage.getItem('little-break-minesweeper-records') || '{}');
-    if (saved !== null && typeof saved === 'object') {
-      for (const key of Object.keys(levels) as Level[]) {
-        const value: unknown = Reflect.get(saved, key);
-        if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) records[key] = value;
-      }
-    }
-  } catch { storageAvailable.value = false; }
+  loadRecords();
+  window.addEventListener('storage', onStorage);
   timer = setInterval(() => { if (game.value.status === 'playing') updateTime(); }, 200);
 });
-onBeforeUnmount(() => { clearInterval(timer); restartDialog.value?.close(); });
+onBeforeUnmount(() => {
+  clearInterval(timer);
+  window.removeEventListener('storage', onStorage);
+  restartDialog.value?.close();
+});
 </script>
 
 <template>

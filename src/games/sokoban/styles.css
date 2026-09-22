@@ -86,6 +86,15 @@ kbd { font-family: inherit; font-weight: 400; }
 .board-status svg { width: 14px; height: 14px; }
 .board-status.warning { color: #a07342; background: #f8f0dc; }
 .board-status.warning i { background: #b88b53; }
+.text-map { min-width: 0; margin-top: 18px; border: 1px solid #d6ddc5; border-radius: 8px; background: #f9faf1; color: #3e4c36; font-size: 16px; line-height: 1.6; }
+.text-map summary { padding: 12px 14px; cursor: pointer; font-weight: 600; }
+.text-map p { margin: 0; padding: 0 14px 14px; }
+.text-map-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border-radius: 0 0 8px 8px; }
+.text-map summary:focus-visible, .text-map-scroll:focus-visible { outline: 2px solid #526d40; outline-offset: -3px; }
+.text-map table { width: 100%; border-collapse: collapse; font-size: inherit; }
+.text-map caption { padding: 12px 14px; text-align: left; font-weight: 600; }
+.text-map th, .text-map td { padding: 10px 12px; border: 1px solid #d6ddc5; white-space: nowrap; text-align: left; }
+.text-map th { background: #e9eedb; }
 .game-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 22px; }
 .primary-button, .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 7px; padding: 11px 13px; font-size: 11px; font-weight: 500; transition: background .2s; }
 .primary-button { background: #526d40; border: 1px solid #526d40; color: #f9faee; }

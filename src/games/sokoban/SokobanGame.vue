@@ -31,6 +31,13 @@ const status = computed(() => game.won ? '全部归位，干得漂亮！' : game
 const boardDescription = computed(() => `你在第 ${Math.floor(game.player / game.width) + 1} 行、第 ${game.player % game.width + 1} 列。` +
   game.boxes.map((cell, index) => `箱子 ${index + 1} 在第 ${Math.floor(cell / game.width) + 1} 行、第 ${cell % game.width + 1} 列${game.cells[cell] === 'goal' ? '，已归位' : ''}。`).join('') +
   `目标位置：${game.goals.map(cell => `${Math.floor(cell / game.width) + 1} 行 ${cell % game.width + 1} 列`).join('、')}。`);
+const textMap = computed(() => Array.from({ length: game.height }, (_, row) =>
+  game.cells.slice(row * game.width, (row + 1) * game.width).map((cell, column) => {
+    const index = row * game.width + column;
+    const terrain = { wall: '墙体', floor: '地面', goal: '目标（地面）' }[cell];
+    return [terrain, ...(game.player === index ? ['玩家'] : []), ...(game.boxes.includes(index) ? ['箱子'] : [])].join('，');
+  }),
+));
 let pointer: { id: number; x: number; y: number } | null = null;
 
 function position(cell: number) {
@@ -41,10 +48,44 @@ function focusBoard(): void {
   void nextTick(() => board.value?.focus({ preventScroll: true }));
 }
 
+function readRecords(raw: string | null): { levelIndex: number | null; best: (number | null)[] } | null {
+  try {
+    const data = JSON.parse(raw ?? 'null');
+    if (data?.version !== 1) return null;
+    return {
+      levelIndex: Number.isInteger(data.levelIndex) && data.levelIndex >= 0 && data.levelIndex < LEVELS.length ? data.levelIndex : null,
+      best: LEVELS.map((_, index) => {
+        const value = Array.isArray(data.best) ? data.best[index] : null;
+        return Number.isSafeInteger(value) && value > 0 ? value : null;
+      }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mergeRecords(records: ReturnType<typeof readRecords>): void {
+  if (!records) return;
+  best.value = best.value.map((current, index) => {
+    const candidate = records.best[index];
+    return candidate === null ? current : current === null ? candidate : Math.min(current, candidate);
+  });
+}
+
 function saveRecords(): void {
   try {
+    mergeRecords(readRecords(localStorage.getItem(storageKey)));
     localStorage.setItem(storageKey, JSON.stringify({ version: 1, levelIndex: game.levelIndex, best: best.value }));
     storageAvailable.value = true;
+  } catch {
+    storageAvailable.value = false;
+  }
+}
+
+function onStorage(event: StorageEvent): void {
+  if (event.key !== storageKey) return;
+  try {
+    if (event.storageArea === localStorage) mergeRecords(readRecords(event.newValue));
   } catch {
     storageAvailable.value = false;
   }
@@ -109,7 +150,7 @@ function cancelChange(): void {
 
 function onKeyDown(event: KeyboardEvent): void {
   if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || confirmDialog.value?.open) return;
-  if (event.target instanceof Element && event.target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+  if (event.target instanceof Element && event.target.closest('.text-map, button, a, input, textarea, select, [contenteditable="true"]')) return;
   const direction = keys[event.code];
   if (direction) {
     event.preventDefault();
@@ -141,24 +182,19 @@ function pointerUp(event: PointerEvent): void {
 }
 
 onMounted(() => {
-  let raw: string | null = null;
-  try { raw = localStorage.getItem(storageKey); }
-  catch { storageAvailable.value = false; }
-  if (raw) {
-    try {
-      const data = JSON.parse(raw);
-      if (data?.version === 1) {
-        if (Array.isArray(data.best)) {
-          best.value = LEVELS.map((_, index) => Number.isSafeInteger(data.best[index]) && data.best[index] > 0 ? data.best[index] : null);
-        }
-        if (Number.isInteger(data.levelIndex) && data.levelIndex >= 0 && data.levelIndex < LEVELS.length) game.loadLevel(data.levelIndex);
-      }
-    } catch { /* Ignore malformed local records. */ }
-  }
+  try {
+    const records = readRecords(localStorage.getItem(storageKey));
+    if (records) {
+      best.value = records.best;
+      if (records.levelIndex !== null) game.loadLevel(records.levelIndex);
+    }
+  } catch { storageAvailable.value = false; }
   document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('storage', onStorage);
 });
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('storage', onStorage);
   pointer = null;
 });
 </script>
@@ -215,6 +251,22 @@ onBeforeUnmount(() => {
           </div>
           <div class="board-status" :class="{ warning: game.deadlocked && !game.won }"><span><i></i>{{ status }}</span><SvgIcon :name="game.won ? 'i-spark' : 'icon-leaf'" /></div>
         </div>
+        <details class="text-map">
+          <summary>查看文字地图</summary>
+          <p id="sokoban-map-help">坐标从左上角第 1 行、第 1 列开始，可用读屏的表格导航逐格查询。阅读文字地图时，方向键、WASD、Z、R 不会控制游戏。窄屏可按 Tab 聚焦表格区域，再用左右方向键滚动。要走棋，请移出文字地图，使用方向按钮或聚焦上方棋盘。</p>
+          <div class="text-map-scroll" role="region" aria-label="文字地图，可横向滚动" aria-describedby="sokoban-map-help" tabindex="0">
+            <table>
+              <caption>第 {{ game.levelIndex + 1 }} 关：{{ level.name }} · {{ game.height }} 行 × {{ game.width }} 列</caption>
+              <thead><tr><th scope="col">行 / 列</th><th v-for="column in game.width" :key="column" scope="col">第 {{ column }} 列</th></tr></thead>
+              <tbody>
+                <tr v-for="(row, index) in textMap" :key="index">
+                  <th scope="row">第 {{ index + 1 }} 行</th>
+                  <td v-for="(cell, column) in row" :key="column">{{ cell }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
         <div class="game-actions"><button id="sokoban-undo" class="secondary-button" :disabled="!game.canUndo" @click="undo"><SvgIcon name="icon-restart" /> 撤销一步 <kbd>Z</kbd></button><button id="sokoban-restart" class="primary-button" @click="requestLevel(game.levelIndex)"><SvgIcon name="i-reset" /> 重新开始 <kbd>R</kbd></button></div>
         <div class="under-board">
           <div class="board-legend" aria-label="棋盘图例"><span><i class="legend-worker"></i>搬运工</span><span><i class="legend-crate"></i>箱子</span><span><i class="legend-goal"></i>目标点</span></div>

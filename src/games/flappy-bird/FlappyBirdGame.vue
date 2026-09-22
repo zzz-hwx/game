@@ -26,10 +26,27 @@ const flightTime = computed(() => {
 const progress = computed(() => Math.min(game.score, 10) * 10);
 let context: CanvasRenderingContext2D | null = null;
 let frame = 0;
-let lastTime = 0;
+let lastTime: number | null = null;
+let needsDraw = false;
 let resumeAfterDialog = false;
 let reduceMotion = false;
 
+function shouldAnimate(): boolean {
+  return !document.hidden && !confirmDialog.value?.open
+    && (game.status === 'playing' || (game.status === 'ready' && !reduceMotion));
+}
+function stopAnimation(): void {
+  cancelAnimationFrame(frame);
+  frame = 0;
+  lastTime = null;
+}
+function updateAnimation(redraw = false): void {
+  needsDraw ||= redraw;
+  // Retain the final draw across visibility changes without running in the background.
+  if (!document.hidden && (needsDraw || shouldAnimate())) {
+    if (!frame) frame = requestAnimationFrame(animate);
+  } else stopAnimation();
+}
 function focusBoard(): void { void nextTick(() => board.value?.focus({ preventScroll: true })); }
 function action(): void {
   if (confirmDialog.value?.open) return;
@@ -39,43 +56,55 @@ function action(): void {
     if (game.status === 'over') game.restart();
     game.flap();
   }
-  lastTime = 0;
+  lastTime = null;
+  updateAnimation(true);
   announcement.value = overlay.value.title;
   focusBoard();
 }
 function flap(): void {
   if (confirmDialog.value?.open) return;
-  if (game.status === 'playing') game.flap();
-  else action();
+  if (game.status === 'playing') {
+    game.flap();
+    updateAnimation();
+  } else action();
 }
 function autoPause(): void {
   resumeAfterDialog = false;
-  lastTime = 0;
-  if (game.status !== 'playing') return;
-  game.pause();
-  announcement.value = '游戏已自动暂停，回来后可以继续飞行。';
+  lastTime = null;
+  const wasPlaying = game.status === 'playing';
+  if (wasPlaying) {
+    game.pause();
+    announcement.value = '游戏已自动暂停，回来后可以继续飞行。';
+  }
+  updateAnimation(wasPlaying);
 }
-function visibilityChange(): void { if (document.hidden) autoPause(); }
+function visibilityChange(): void {
+  if (document.hidden) autoPause();
+  else updateAnimation();
+}
 function requestRestart(): void {
   if (game.status === 'ready' || confirmDialog.value?.open) return;
   if (game.status === 'over') { restart(); return; }
   resumeAfterDialog = game.status === 'playing';
   game.pause();
-  lastTime = 0;
+  lastTime = null;
   confirmDialog.value?.showModal();
+  updateAnimation(true);
 }
 function cancelRestart(): void {
   confirmDialog.value?.close();
   if (resumeAfterDialog) game.resume();
   resumeAfterDialog = false;
-  lastTime = 0;
+  lastTime = null;
+  updateAnimation(true);
   focusBoard();
 }
 function restart(): void {
   confirmDialog.value?.close();
   game.restart();
-  lastTime = 0;
+  lastTime = null;
   resumeAfterDialog = false;
+  updateAnimation(true);
   announcement.value = '新的飞行准备好了，最高纪录已保留。';
   focusBoard();
 }
@@ -100,22 +129,32 @@ function pointerDown(event: PointerEvent): void {
 function saveBest(): void {
   if (game.score <= best.value) return;
   best.value = game.score;
-  try { localStorage.setItem(storageKey, String(best.value)); }
-  catch { storageAvailable.value = false; }
+  try {
+    const value = Number(localStorage.getItem(storageKey));
+    if (Number.isSafeInteger(value) && value >= 0) best.value = Math.max(best.value, value);
+    localStorage.setItem(storageKey, String(best.value));
+  } catch { storageAvailable.value = false; }
+}
+function syncBest(event: StorageEvent): void {
+  if (event.key !== storageKey || event.storageArea !== localStorage) return;
+  const value = Number(event.newValue);
+  if (Number.isSafeInteger(value) && value >= 0) best.value = Math.max(best.value, value);
 }
 function animate(time: number): void {
-  const dt = lastTime ? (time - lastTime) / 1000 : 0;
+  frame = 0;
+  const dt = lastTime !== null ? (time - lastTime) / 1000 : 0;
   lastTime = time;
   const previousStatus = game.status;
   const previousScore = game.score;
-  game.step(dt);
+  if (shouldAnimate()) game.step(dt);
   if (previousScore !== game.score) {
     saveBest();
     announcement.value = `成功穿过 ${game.score} 道水管。`;
   }
   if (game.status !== previousStatus) announcement.value = overlay.value.title + '。' + overlay.value.text;
   if (context) drawGame(context, game, reduceMotion ? 0 : time / 1000);
-  frame = requestAnimationFrame(animate);
+  needsDraw = false;
+  updateAnimation();
 }
 onMounted(() => {
   try {
@@ -134,13 +173,15 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('visibilitychange', visibilityChange);
   window.addEventListener('blur', autoPause);
-  frame = requestAnimationFrame(animate);
+  window.addEventListener('storage', syncBest);
+  updateAnimation();
 });
 onBeforeUnmount(() => {
-  cancelAnimationFrame(frame);
+  stopAnimation();
   document.removeEventListener('keydown', onKeyDown);
   document.removeEventListener('visibilitychange', visibilityChange);
   window.removeEventListener('blur', autoPause);
+  window.removeEventListener('storage', syncBest);
 });
 </script>
 

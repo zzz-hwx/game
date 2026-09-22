@@ -142,6 +142,108 @@ test('离开焦点自动暂停，取消重开和退出清理正常', async ({ pa
   expect(errors).toEqual([]);
 });
 
+for (const scenario of ['blur', 'hidden', 'paused', 'focused'] as const) {
+  test(`重开弹窗 Escape 取消保留正确暂停状态：${scenario}`, async ({ page }) => {
+    const board = page.locator('.pacman-board');
+    await page.locator('#pacman-overlay-action').click();
+    await advanceOneTick(page);
+    if (scenario === 'paused') await page.keyboard.press('Space');
+    await page.locator('#pacman-restart').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(board).toHaveAttribute('data-state', 'paused');
+    const player = await board.getAttribute('data-player');
+    const ticks = await board.getAttribute('data-ticks');
+    const score = (await page.locator('#pacman-score').textContent())!;
+    if (scenario === 'blur') await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    if (scenario === 'hidden') {
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        Reflect.deleteProperty(document, 'hidden');
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+    }
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect(board).toHaveAttribute('data-state', scenario === 'focused' ? 'playing' : 'paused');
+    if (scenario === 'focused') await advanceOneTick(page);
+    else {
+      await page.clock.runFor(1000);
+      await expect(board).toHaveAttribute('data-player', player!);
+      await expect(board).toHaveAttribute('data-ticks', ticks!);
+      await expect(page.locator('#pacman-score')).toHaveText(score);
+      await page.locator('#pacman-overlay-action').click();
+      await advanceOneTick(page);
+    }
+  });
+}
+
+test('双页面交错保存：storage 事件未送达时低分也不能覆盖最新高分', async ({ page, context }) => {
+  const key = 'little-break-pacman-best-v1';
+  const other = await context.newPage();
+  await other.goto('/#/games/pacman');
+  await expect(other.locator('.pacman-board')).toHaveAttribute('data-state', 'ready');
+  await page.getByRole('link', { name: '返回大厅' }).click();
+  // Install before mounting: window storage listeners run in registration order.
+  const deliveries = await page.evaluateHandle(key => {
+    const events = { count: 0 };
+    window.addEventListener('storage', event => {
+      if (event.key === key) { events.count++; event.stopImmediatePropagation(); }
+    }, true);
+    return events;
+  }, key);
+  await page.getByRole('link', { name: '开始玩吃豆人', exact: true }).click();
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'ready');
+  await other.evaluate(key => localStorage.setItem(key, '5000'), key);
+  await expect.poll(async () => (await deliveries.jsonValue()).count).toBe(1);
+  await expect(page.locator('#pacman-best')).toHaveText('0000');
+  await page.locator('#pacman-overlay-action').click();
+  await advanceOneTick(page);
+  await expect(page.locator('#pacman-score')).toHaveText('0010');
+  expect(await other.evaluate(key => localStorage.getItem(key), key)).toBe('5000');
+  await expect(page.locator('#pacman-best')).toHaveText('5000');
+  await other.close();
+});
+
+test('双页面原生 storage 同步只更新纪录，不改变游戏和输入或回写存储', async ({ page, context }) => {
+  const key = 'little-break-pacman-best-v1';
+  const other = await context.newPage();
+  await other.goto('/#/games/pacman');
+  await expect(other.locator('.pacman-board')).toHaveAttribute('data-state', 'ready');
+  await page.locator('#pacman-overlay-action').click();
+  await advanceOneTick(page);
+  await expect(other.locator('#pacman-best')).toHaveText('0010');
+  await expect(other.locator('.pacman-board')).toHaveAttribute('data-state', 'ready');
+  await expect(other.locator('#pacman-score')).toHaveText('0000');
+  const board = page.locator('.pacman-board');
+  const player = await board.getAttribute('data-player');
+  const ticks = await board.getAttribute('data-ticks');
+  const direction = await board.getAttribute('data-direction');
+  const calls = await page.evaluateHandle(key => {
+    const calls = { reads: 0, writes: 0, events: 0 };
+    const get = Storage.prototype.getItem;
+    const set = Storage.prototype.setItem;
+    Storage.prototype.getItem = function (name) { if (name === key) calls.reads++; return get.call(this, name); };
+    Storage.prototype.setItem = function (name, value) { if (name === key) calls.writes++; return set.call(this, name, value); };
+    window.addEventListener('storage', event => { if (event.key === key) calls.events++; });
+    return calls;
+  }, key);
+  for (const [index, value] of ['5000', '10', '-1', 'NaN', '1.5', 'Infinity', '9007199254740992'].entries()) {
+    await other.evaluate(({ key, value }) => localStorage.setItem(key, value), { key, value });
+    await expect.poll(async () => (await calls.jsonValue()).events).toBe(index + 1);
+    await expect(page.locator('#pacman-best')).toHaveText('5000');
+  }
+  await expect(board).toHaveAttribute('data-state', 'playing');
+  await expect(board).toHaveAttribute('data-player', player!);
+  await expect(board).toHaveAttribute('data-ticks', ticks!);
+  await expect(board).toHaveAttribute('data-direction', direction!);
+  await expect(page.locator('#pacman-score')).toHaveText('0010');
+  await advanceOneTick(page);
+  await expect(page.locator('#pacman-score')).toHaveText('0020');
+  expect(await calls.jsonValue()).toEqual({ reads: 0, writes: 0, events: 7 });
+  await other.close();
+});
+
 test('存储不可用不影响游戏，损坏纪录安全忽略', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('little-break-pacman-best-v1', '-10'));
   await page.reload();

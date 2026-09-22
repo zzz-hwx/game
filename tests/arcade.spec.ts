@@ -91,13 +91,22 @@ test('游戏切换音效及暂停时保持外部 SVG 引用', async ({ page }) =
   }
 });
 
-test('大厅展示全部入口，游戏可进入、返回及刷新', async ({ page }) => {
+test('大厅展示全部入口，未知地址返回大厅', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(page.locator('.game-card-link')).toHaveCount(entries.length);
   await expectNoOverflow(page);
-  for (const game of entries) {
+  await page.goto('/#/not-a-game');
+  await expect(page.locator('.lobby')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+for (const game of entries) {
+  test(`大厅${game.name}可进入、返回及刷新`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
     await page.getByRole('link', { name: `开始玩${game.name}`, exact: true }).click();
     await expect(page.locator(game.selector)).toBeVisible();
     await expect(page).toHaveTitle(`${game.name} · 摸鱼俱乐部`);
@@ -111,11 +120,9 @@ test('大厅展示全部入口，游戏可进入、返回及刷新', async ({ pa
     await page.getByRole('link', { name: '返回大厅' }).click();
     await expect(page.locator('.game-card-link')).toHaveCount(entries.length);
     await expect(page.locator(game.selector)).toHaveCount(0);
-  }
-  await page.goto('/#/not-a-game');
-  await expect(page.locator('.lobby')).toBeVisible();
-  expect(errors).toEqual([]);
-});
+    expect(errors).toEqual([]);
+  });
+}
 
 test('手机触屏方向和方块按钮可操作', async ({ page, isMobile }) => {
   test.skip(!isMobile, '触屏按钮仅在移动布局显示');
@@ -269,9 +276,17 @@ test('连连看提示配对、暂停计时、洗牌与离开清理', async ({ pa
   await page.locator('#start-button').click();
   await page.locator('#hint-button').click();
   await expect(page.locator('.tile.hinted')).toHaveCount(2);
-  const hintCells = await page.locator('.tile.hinted').evaluateAll((tiles) => tiles.map((tile) => ({ row: tile.getAttribute('data-row'), col: tile.getAttribute('data-col') })));
+  const hintCells = await page.locator('.tile.hinted').evaluateAll((tiles) => tiles.map((tile) => ({
+    row: tile.getAttribute('data-row'), col: tile.getAttribute('data-col'), label: tile.getAttribute('aria-label')!,
+  })));
+  await expect(page.locator('#game-message')).toHaveAttribute('role', 'status');
   for (const cell of hintCells) {
-    await page.locator(`.tile[data-row="${cell.row}"][data-col="${cell.col}"]`).click();
+    const [fruit, position] = cell.label.split('，');
+    await expect(page.locator('#game-message')).toContainText(fruit!);
+    await expect(page.locator('#game-message')).toContainText(position!);
+  }
+  for (const cell of hintCells) {
+    await page.getByRole('button', { name: cell.label, exact: true }).click();
   }
   await expect(page.locator('#connection-line')).toHaveAttribute('points', /\d[\d., ]+\d/);
   await page.clock.runFor(600);
@@ -294,4 +309,170 @@ test('连连看提示配对、暂停计时、洗牌与离开清理', async ({ pa
   await expect(page.locator('#timer')).toHaveText('03:00');
   await expect(page.locator('#hint-button')).toBeDisabled();
   expect(errors).toEqual([]);
+});
+
+for (const delayStorageEvent of [false, true]) {
+  test(`贪吃蛇跨标签页最高分不被设置覆盖${delayStorageEvent ? '（存储事件未到达）' : '并实时同步'}`, async ({ page, context }) => {
+    await page.addInitScript(() => { Math.random = () => 0; });
+    await page.goto('/#/games/snake');
+    await expect(page.locator('#start-button')).toBeVisible();
+    const other = await context.newPage();
+    if (delayStorageEvent) await other.addInitScript(() => {
+      window.addEventListener('storage', (event) => event.stopImmediatePropagation());
+    });
+    await other.goto('/#/games/snake');
+    await other.locator('[data-level="easy"]').click();
+    await page.clock.install();
+    await page.locator('#start-button').click();
+    await page.clock.runFor(1430);
+    await expect(page.locator('#best-score')).toHaveText('10');
+    await page.locator('#pause-button').click();
+    if (!delayStorageEvent) await expect(other.locator('#best-score')).toHaveText('10');
+    await expect(other.locator('#game-status')).toHaveAttribute('data-state', 'ready');
+    await expect(other.locator('[data-level="easy"]')).toHaveAttribute('aria-pressed', 'true');
+    await other.locator('#sound-button').click();
+    await expect(other.locator('#best-score')).toHaveText('10');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('little-break-snake')!).best)).toBe(10);
+    await other.close();
+  });
+}
+
+for (const delayStorageEvent of [false, true]) {
+  test(`连连看跨标签页合并不同难度最高分${delayStorageEvent ? '（存储事件未到达）' : '并实时同步'}`, async ({ page, context }) => {
+    await context.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+    await page.goto('/#/games/link');
+    await expect(page.locator('#start-button')).toBeVisible();
+    const other = await context.newPage();
+    if (delayStorageEvent) await other.addInitScript(() => {
+      window.addEventListener('storage', (event) => event.stopImmediatePropagation());
+    });
+    await other.goto('/#/games/link');
+    await page.locator('#start-button').click();
+    await page.locator('.tile[data-row="0"][data-col="0"]').click();
+    await page.locator('.tile[data-row="0"][data-col="1"]').click();
+    await expect(page.locator('#score')).toHaveText('100分');
+    if (!delayStorageEvent) await expect(other.locator('#best-score')).toHaveText('100');
+    await other.locator('[data-level="easy"]').click();
+    await expect(other.locator('.tile')).toHaveCount(24);
+    await other.locator('#start-button').click();
+    await other.locator('.tile[data-row="0"][data-col="0"]').click();
+    await other.locator('.tile[data-row="0"][data-col="1"]').click();
+    await expect(other.locator('#score')).toHaveText('100分');
+    expect(await other.evaluate(() => JSON.parse(localStorage.getItem('link-and-chill-records')!))).toEqual({ easy: 100, normal: 100, hard: 0 });
+    await expect(page.locator('.tile.empty')).toHaveCount(2);
+    await expect(page.locator('#score')).toHaveText('100分');
+    await other.close();
+  });
+}
+
+for (const key of ['Enter', 'Space']) {
+  test(`连连看${key}配对后可直接继续键盘操作`, async ({ page }) => {
+    await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+    await page.goto('/#/games/link');
+    await page.locator('[data-level="easy"]').click();
+    await page.clock.install();
+    await page.locator('#start-button').click();
+    await page.locator('.tile[data-row="0"][data-col="0"]').focus();
+    await page.keyboard.press(key);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press(key);
+    await page.clock.runFor(300);
+    await expect(page.locator('.tile.empty')).toHaveCount(2);
+    await expect(page.locator('.tile[data-row="0"][data-col="2"]')).toBeFocused();
+    await page.keyboard.press(key);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press(key);
+    await page.clock.runFor(300);
+    await expect(page.locator('.tile.empty')).toHaveCount(4);
+    await expect(page.locator('.tile[data-row="0"][data-col="4"]')).toBeFocused();
+    for (let pair = 2; pair < 12; pair++) {
+      await page.keyboard.press(key);
+      await page.keyboard.press('Tab');
+      await page.keyboard.press(key);
+      await page.clock.runFor(300);
+    }
+    await expect(page.locator('.tile.empty')).toHaveCount(24);
+    await expect(page.locator('#overlay-action')).toBeFocused();
+  });
+}
+
+test('连连看配对动画结束不抢走已移至其他控件的焦点', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+  await page.goto('/#/games/link');
+  await page.clock.install();
+  await page.locator('#start-button').click();
+  await page.locator('.tile[data-row="0"][data-col="0"]').focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await page.locator('#sound-button').focus();
+  await page.clock.runFor(300);
+  await expect(page.locator('#sound-button')).toBeFocused();
+});
+
+test('连连看重复键盘提示更新播报，暂停和用尽后不消耗提示', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+  await page.goto('/#/games/link');
+  await page.clock.install();
+  await page.locator('#start-button').click();
+  await page.locator('#hint-button').focus();
+  const message = page.locator('#game-message');
+  for (const remaining of [2, 1]) {
+    await page.keyboard.press('h');
+    await expect(message).toHaveText(`提示：樱桃，第1行第1列与第1行第2列可以配对。剩余${remaining}次提示。`);
+    await expect(page.locator('#hint-count')).toHaveText(String(remaining));
+    await expect(page.locator('#hint-button')).toBeFocused();
+  }
+  await page.locator('#start-button').click();
+  await page.keyboard.press('h');
+  await expect(message).toHaveText('已为你暂停计时，准备好后再继续。');
+  await expect(page.locator('#hint-count')).toHaveText('1');
+  await page.locator('#start-button').click();
+  await page.keyboard.press('h');
+  await expect(message).toHaveText('提示：樱桃，第1行第1列与第1行第2列可以配对。剩余0次提示。');
+  await expect(page.locator('#hint-button')).toBeDisabled();
+  await page.keyboard.press('h');
+  await expect(page.locator('#hint-count')).toHaveText('0');
+  await page.clock.runFor(4500);
+  await expect(page.locator('.tile.hinted')).toHaveCount(0);
+  await expect(message).toContainText('第1行第1列与第1行第2列');
+});
+
+test('大厅游戏说明和操作提示在手机、平板及桌面清晰且不挤压入口', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.game-card-link')).toHaveCount(entries.length);
+  for (const width of [320, 393, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expectNoOverflow(page);
+    const styles = await page.locator('.card-description, .card-controls').evaluateAll(elements => {
+      function luminance(color: string) {
+        const [r, g, b] = color.match(/[\d.]+/g)!.slice(0, 3).map(value => {
+          const channel = Number(value) / 255;
+          return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+        });
+        return .2126 * r + .7152 * g + .0722 * b;
+      }
+      return elements.map(element => {
+        const style = getComputedStyle(element);
+        const foreground = luminance(style.color);
+        const background = luminance(getComputedStyle(element.closest('.game-card-link')!).backgroundColor);
+        return {
+          size: parseFloat(style.fontSize), minimum: element.classList.contains('card-description') ? 12 : 11,
+          contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
+        };
+      });
+    });
+    for (const style of styles) {
+      expect(style.size).toBeGreaterThanOrEqual(style.minimum);
+      expect(style.contrast).toBeGreaterThanOrEqual(4.5);
+    }
+    const overlaps = await page.locator('.card-bottom').evaluateAll(elements => elements.filter(element => {
+      const controls = element.querySelector('.card-controls')!.getBoundingClientRect();
+      const action = element.querySelector('.play-link')!.getBoundingClientRect();
+      const card = element.closest('.game-card-link')!.getBoundingClientRect();
+      return controls.left < card.left || action.right > card.right ||
+        (controls.left < action.right && controls.right > action.left && controls.top < action.bottom && controls.bottom > action.top);
+    }).length);
+    expect(overlaps).toBe(0);
+  }
 });

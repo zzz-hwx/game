@@ -107,14 +107,19 @@ function loadRecords(): void {
     if (saved === null || typeof saved !== 'object') return;
     for (const key of Object.keys(levels) as Level[]) {
       const value: unknown = Reflect.get(saved, key);
-      if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) records[key] = value;
+      if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) records[key] = Math.max(records[key], value);
     }
   } catch {
     storageAvailable.value = false;
   }
 }
 
+function onStorage(event: StorageEvent): void {
+  if (event.key === 'link-and-chill-records' && event.storageArea === localStorage) loadRecords();
+}
+
 function saveRecord(): void {
+  loadRecords();
   if (state.score <= records[state.level]) return;
   records[state.level] = state.score;
   try { localStorage.setItem('link-and-chill-records', JSON.stringify(records)); }
@@ -276,7 +281,7 @@ function showCombo(points: number): void {
   comboVisible.value = true;
 }
 
-function chooseTile(cell: Point): void {
+function chooseTile(cell: Point, event: MouseEvent): void {
   if (disposed || modal.value) return;
   if (state.status === 'ready') startGame();
   if (state.status !== 'playing' || state.locked || state.board[cell.row][cell.col] === null) return;
@@ -301,6 +306,7 @@ function chooseTile(cell: Point): void {
   }
   const type = state.board[cell.row][cell.col];
   if (type === null) return;
+  const focusedTile = event.detail === 0 && event.currentTarget === document.activeElement ? document.activeElement : null;
   state.locked = true;
   matched.value = [{ ...previous, type }, { ...cell, type }];
   drawConnection(path);
@@ -324,6 +330,18 @@ function chooseTile(cell: Point): void {
       state.board = shuffleBoard(state.board);
       gameMessage.value = '暂时没有可连的水果，已为你免费洗牌，快乐继续。';
     }
+    if (focusedTile) void nextTick(() => {
+      if (disposed || revision !== state.revision || modal.value || (state.status !== 'playing' && state.status !== 'won')) return;
+      if (document.activeElement !== document.body && document.activeElement !== focusedTile) return;
+      if (state.status === 'won') {
+        boardWrap.value?.querySelector<HTMLButtonElement>('#overlay-action')?.focus();
+        return;
+      }
+      const remaining = Array.from(boardElement.value?.querySelectorAll<HTMLButtonElement>('.tile:not(:disabled)') ?? []);
+      const index = cell.row * config.value.cols + cell.col;
+      const next = remaining.find(tile => Number(tile.dataset.row) * config.value.cols + Number(tile.dataset.col) > index) ?? remaining[0];
+      next?.focus();
+    });
   }, 260);
 }
 
@@ -335,7 +353,9 @@ function useHint(): void {
   if (!move) return;
   state.hints -= 1;
   hinted.value = [move.start, move.end];
-  gameMessage.value = '看见亮起来的两枚水果了吗？点击它们，就能配对。';
+  const { start, end } = move;
+  const fruit = fruits[state.board[start.row][start.col]!][1];
+  gameMessage.value = `提示：${fruit}，第${start.row + 1}行第${start.col + 1}列与第${end.row + 1}行第${end.col + 1}列可以配对。剩余${state.hints}次提示。`;
   const revision = state.revision;
   hintTimer = setTimeout(() => {
     if (!disposed && revision === state.revision) hinted.value = [];
@@ -473,6 +493,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('blur', onBlur);
   window.addEventListener('resize', updateConnection);
+  window.addEventListener('storage', onStorage);
   if (typeof ResizeObserver !== 'undefined') {
     observer = new ResizeObserver(updateConnection);
     if (boardWrap.value) observer.observe(boardWrap.value);
@@ -492,6 +513,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange);
   window.removeEventListener('blur', onBlur);
   window.removeEventListener('resize', updateConnection);
+  window.removeEventListener('storage', onStorage);
   modalElement.value?.close();
   stopVoices();
   if (audio && audio.state !== 'closed') void audio.close().catch(() => {});
@@ -537,7 +559,7 @@ onBeforeUnmount(() => {
                 :data-row="tile.row" :data-col="tile.col" :style="{ '--tile-bg': tile.fruit?.[2] }"
                 :disabled="tile.type === null || state.locked" :aria-hidden="!tile.fruit ? true : undefined"
                 :aria-label="tile.fruit ? `${tile.fruit[1]}，第${tile.row + 1}行第${tile.col + 1}列` : undefined"
-                :aria-pressed="tile.fruit ? tile.selected : undefined" @click="chooseTile({ row: tile.row, col: tile.col })">
+                :aria-pressed="tile.fruit ? tile.selected : undefined" @click="chooseTile({ row: tile.row, col: tile.col }, $event)">
                 <SvgIcon v-if="tile.fruit" aria-hidden="true" viewBox="0 0 64 64" sprite="fruits" :name="`fruit-${tile.fruit[0]}`" />
               </button>
             </div>

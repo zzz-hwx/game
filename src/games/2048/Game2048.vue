@@ -38,10 +38,32 @@ function tileClass(value: number): string {
   return value > 2048 ? 'tile-super' : `tile-${value}`;
 }
 
+function readBest(raw: string | null): number {
+  try {
+    const saved = JSON.parse(raw ?? 'null');
+    if (saved?.version !== 1) return 0;
+    const record = Number.isSafeInteger(saved.best) && saved.best >= 0 ? saved.best : 0;
+    const score = Number.isSafeInteger(saved.score) && saved.score >= 0 ? saved.score : 0;
+    return Math.max(record, score);
+  } catch {
+    return 0;
+  }
+}
+
 function save(): void {
   try {
+    best.value = Math.max(best.value, readBest(localStorage.getItem(STORAGE_KEY)));
     localStorage.setItem(STORAGE_KEY, game.serialize(best.value));
     storageAvailable.value = true;
+  } catch {
+    storageAvailable.value = false;
+  }
+}
+
+function onStorage(event: StorageEvent): void {
+  if (event.key !== STORAGE_KEY) return;
+  try {
+    if (event.storageArea === localStorage) best.value = Math.max(best.value, readBest(event.newValue));
   } catch {
     storageAvailable.value = false;
   }
@@ -101,6 +123,11 @@ function requestRestart(): void {
   else restart();
 }
 
+function cancelRestart(): void {
+  restartDialog.value?.close();
+  focusBoard();
+}
+
 function keepPlaying(): void {
   game.keepPlaying();
   save();
@@ -154,11 +181,13 @@ onMounted(() => {
   catch { storageAvailable.value = false; }
   save();
   document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('storage', onStorage);
 });
 onBeforeUnmount(() => {
   clearTimeout(animationTimer);
   pointer = null;
   document.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('storage', onStorage);
 });
 </script>
 
@@ -238,9 +267,9 @@ onBeforeUnmount(() => {
       </aside>
     </div>
     <footer><span><i></i> 纯粹的游戏，简单的快乐。</span><span>SMALL NUMBERS. BIG POSSIBILITIES. <b>＋</b></span></footer>
-    <dialog ref="restartDialog" class="restart-dialog" aria-labelledby="restart-title-2048">
+    <dialog ref="restartDialog" class="restart-dialog" aria-labelledby="restart-title-2048" @cancel.prevent="cancelRestart">
       <span class="result-eyebrow">A FRESH LITTLE START</span><h2 id="restart-title-2048">换个心情，再来一局？</h2><p>本局进度会清空，最高纪录会好好保留。</p>
-      <div class="dialog-actions"><button class="secondary-button" autofocus @click="restartDialog?.close()">继续本局</button><button class="primary-button" @click="restart">开始新的一局</button></div>
+      <div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelRestart">继续本局</button><button class="primary-button" @click="restart">开始新的一局</button></div>
     </dialog>
     <div class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
   </main>

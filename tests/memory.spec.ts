@@ -413,6 +413,40 @@ test('离开错配或暂停局时清理计时器和可见性监听，返回为�
   expect(errors).toEqual([]);
 });
 
+test('320×568 困难模式键盘逐行导航始终可见，末行可 Enter 翻牌', async ({ page, isMobile }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await activate(page.getByRole('button', { name: '挑战 12 对', exact: true }), isMobile);
+  await expectReady(page, 12);
+  await card(page, 0).evaluate(element => {
+    (element as HTMLButtonElement).focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  });
+  const expectVisible = async (index: number) => {
+    // Native scrolling rounds fractional card geometry to whole pixels.
+    await expect.poll(() => card(page, index).evaluate(element => {
+      const { top, bottom } = element.getBoundingClientRect();
+      return top >= -1 && bottom <= innerHeight + 1;
+    })).toBe(true);
+  };
+  await expect(card(page, 0)).toBeFocused();
+  await expectVisible(0);
+  for (let index = 4; index <= 20; index += 4) {
+    // Locator.focus/press and scrolling helpers would hide off-screen navigation.
+    await page.keyboard.press('ArrowDown');
+    await expect(card(page, index)).toBeFocused();
+    await expectVisible(index);
+  }
+  for (const [key, index] of [['End', 23], ['Home', 20]] as const) {
+    await page.keyboard.press(key);
+    await expect(card(page, index)).toBeFocused();
+    await expectVisible(index);
+  }
+  await page.keyboard.press('Enter');
+  await expect(card(page, 20)).toHaveClass(/flipped/);
+  await expect(page.locator('.board-shell')).toHaveAttribute('data-state', 'playing');
+  await expectVisible(20);
+});
+
 test('320px 困难布局无横向溢出，末行卡片和暂停、重开仍可操作', async ({ page, isMobile }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await activate(page.getByRole('button', { name: '挑战 12 对', exact: true }), isMobile);

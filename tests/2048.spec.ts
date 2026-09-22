@@ -116,6 +116,127 @@ test('2048 重开确认支持取消、Escape、阻止误操作并保留纪录', 
   await expect(page.locator('.number-board')).toBeFocused();
 });
 
+for (const cancel of ['button', 'Escape']) {
+  test(`2048 取消重开后直接方向键继续移动：${cancel}`, async ({ page }) => {
+    await press(page, 'ArrowLeft');
+    await page.locator('#restart-2048').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    if (cancel === 'Escape') await page.keyboard.press('Escape');
+    else await page.getByRole('button', { name: '继续本局', exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    // Do not use press(): it focuses the board and would mask the regression.
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#moves-2048')).toHaveText('2');
+    await expect(page.locator('.number-board')).toBeFocused();
+  });
+}
+
+test('2048 跨页同步最高纪录不写回、不替换本局或撤销', async ({ page, context }) => {
+  await press(page, 'ArrowLeft');
+  const ownBoard = await readBoard(page);
+  const other = await context.newPage();
+  await other.addInitScript(() => { Math.random = () => 0; });
+  await other.goto('/#/games/2048');
+  await expect(other.locator('#moves-2048')).toHaveText('1');
+  await page.evaluate(() => {
+    Reflect.set(window, '__recordWrites', 0);
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      Reflect.set(window, '__recordWrites', Reflect.get(window, '__recordWrites') + 1);
+      return set.call(this, key, value);
+    };
+  });
+  for (const key of ['ArrowDown', 'ArrowUp', 'ArrowLeft']) await press(other, key);
+  await expect(other.locator('#score-2048')).toHaveText('8');
+  await expect(page.locator('#best-2048')).toHaveText('8');
+  expect(await readBoard(page)).toEqual(ownBoard);
+  await expect(page.locator('#score-2048')).toHaveText('4');
+  await expect(page.locator('#moves-2048')).toHaveText('1');
+  await expect(page.locator('#undo-2048')).toBeEnabled();
+  expect(await page.evaluate(() => Reflect.get(window, '__recordWrites'))).toBe(0);
+  const otherBoard = await readBoard(other);
+  await page.locator('#undo-2048').click();
+  expect(await readBoard(page)).toEqual([2, 2, 0, 0, ...empty]);
+  await expect(page.locator('#best-2048')).toHaveText('8');
+  await press(page, 'ArrowLeft');
+  await expect(page.locator('#best-2048')).toHaveText('8');
+  expect(await readBoard(other)).toEqual(otherBoard);
+  await expect(other.locator('#moves-2048')).toHaveText('4');
+  await expect(other.locator('#undo-2048')).toBeEnabled();
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).best, STORAGE_KEY)).toBe(8);
+  await other.close();
+});
+
+test('2048 保存前合并最新合法最高分，即使跨页事件尚未处理', async ({ page, context }) => {
+  // Register before mounting so the component cannot receive the pending event.
+  await page.addInitScript(() => {
+    Reflect.set(window, '__heldStorageEvents', 0);
+    window.addEventListener('storage', event => {
+      event.stopImmediatePropagation();
+      Reflect.set(window, '__heldStorageEvents', Reflect.get(window, '__heldStorageEvents') + 1);
+    }, true);
+  });
+  await page.reload();
+  await expect(page.locator('#best-2048')).toHaveText('0');
+  const other = await context.newPage();
+  await other.goto('/');
+  await other.evaluate(key => localStorage.setItem(key, JSON.stringify({
+    version: 1, board: [64, 64, ...Array(14).fill(0)], score: 256, moves: 30, continued: false, best: 512,
+  })), STORAGE_KEY);
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, '__heldStorageEvents'))).toBe(1);
+  await expect(page.locator('#best-2048')).toHaveText('0');
+  await press(page, 'ArrowLeft');
+  await expect(page.locator('#best-2048')).toHaveText('512');
+  expect(await readBoard(page)).toEqual([4, 2, 0, 0, ...empty]);
+  await expect(page.locator('#moves-2048')).toHaveText('1');
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY)).toEqual({
+    version: 1, board: [4, 2, 0, 0, ...empty], score: 4, moves: 1, continued: false, best: 512,
+  });
+  await page.locator('#undo-2048').click();
+  expect(await readBoard(page)).toEqual([2, 2, 0, 0, ...empty]);
+  await expect(page.locator('#best-2048')).toHaveText('512');
+  await other.close();
+});
+
+test('2048 跨页记录严格校验版本与安全整数，损坏或删除不降低纪录', async ({ page, context }) => {
+  await press(page, 'ArrowLeft');
+  const ownBoard = await readBoard(page);
+  await page.evaluate(() => {
+    Reflect.set(window, '__storageEvents', 0);
+    window.addEventListener('storage', () => {
+      Reflect.set(window, '__storageEvents', Reflect.get(window, '__storageEvents') + 1);
+    });
+  });
+  const other = await context.newPage();
+  await other.goto('/');
+  const cases = [
+    { raw: '{', expected: 4 },
+    { raw: 'null', expected: 4 },
+    { raw: JSON.stringify({ version: 2, best: 512, score: 1024 }), expected: 4 },
+    ...[true, '512', -1, 0.5, Number.MAX_SAFE_INTEGER + 1, null, [], {}].map(value => ({
+      raw: JSON.stringify({ version: 1, best: value, score: value }), expected: 4,
+    })),
+    { raw: JSON.stringify({ version: 1, best: 64, board: [3] }), expected: 64 },
+    { raw: JSON.stringify({ version: 1, best: 0, score: 128 }), expected: 128 },
+    { raw: null, expected: 128 },
+  ];
+  for (const [index, { raw, expected }] of cases.entries()) {
+    await other.evaluate(({ key, raw }) => {
+      if (raw === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, raw);
+    }, { key: STORAGE_KEY, raw });
+    await expect.poll(() => page.evaluate(() => Reflect.get(window, '__storageEvents'))).toBe(index + 1);
+    await expect(page.locator('#best-2048')).toHaveText(String(expected));
+  }
+  expect(await readBoard(page)).toEqual(ownBoard);
+  await expect(page.locator('#moves-2048')).toHaveText('1');
+  await expect(page.locator('#score-2048')).toHaveText('4');
+  await page.locator('#undo-2048').click();
+  expect(await readBoard(page)).toEqual([2, 2, 0, 0, ...empty]);
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).best, STORAGE_KEY)).toBe(128);
+  await other.close();
+});
+
 test('2048 合成目标、胜利提示、撤销胜利与继续挑战', async ({ page }, testInfo) => {
   await seed(page, [1024, 1024, 0, 0, ...empty], 1000, 100);
   await press(page, 'ArrowLeft');

@@ -209,3 +209,50 @@ test('扫雷零秒最佳记录与无效存储数据', async ({ page }) => {
   await page.locator(cellSelector(0)).click();
   await expect(page.locator('#mine-status')).toHaveAttribute('data-state', 'playing');
 });
+
+for (const delayStorageEvent of [false, true]) {
+  test(`扫雷跨标签页合并各难度最短用时${delayStorageEvent ? '（存储事件未到达）' : '并实时同步'}`, async ({ page, context }) => {
+    if (delayStorageEvent) {
+      await page.addInitScript(() => window.addEventListener('storage', (event) => event.stopImmediatePropagation()));
+      await page.reload();
+    }
+    await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+    await page.clock.pauseAt(new Date('2026-01-01T00:00:01Z'));
+    await page.locator(cellSelector(0)).click();
+    await page.clock.runFor(10000);
+    const revealedCount = await page.locator('.mine-cell.revealed').count();
+    const other = await context.newPage();
+    await other.goto('/#/games/minesweeper');
+    await expect(other.locator('#mine-best')).toHaveText('--:--');
+    await other.evaluate(() => localStorage.setItem('little-break-minesweeper-records', JSON.stringify({ easy: 20, normal: 60, hard: null })));
+    if (!delayStorageEvent) await expect(page.locator('#mine-best')).toHaveText('00:20');
+    await expect(page.locator('.mine-cell.revealed')).toHaveCount(revealedCount);
+    await expect(page.locator('#mine-timer')).toHaveText('00:10');
+    for (let index = 0; index < blueprint.cells.length; index++) {
+      if (!blueprint.cells[index].mine && !blueprint.cells[index].revealed) {
+        const tile = page.locator(cellSelector(index));
+        if (!(await tile.getAttribute('class'))?.includes('revealed')) await tile.click();
+      }
+    }
+    await expect(page.locator('#mine-status')).toHaveAttribute('data-state', 'won');
+    await expect(page.locator('#mine-best')).toHaveText('00:10');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('little-break-minesweeper-records')!))).toEqual({ easy: 10, normal: 60, hard: null });
+    await expect(other.locator('#mine-best')).toHaveText('00:10');
+    await other.evaluate(() => localStorage.setItem('little-break-minesweeper-records', JSON.stringify({ easy: 0, normal: 60, hard: null })));
+    if (!delayStorageEvent) await expect(page.locator('#mine-best')).toHaveText('00:00');
+    await page.locator('#mine-restart').click();
+    await page.locator(cellSelector(0)).click();
+    await page.clock.runFor(20000);
+    for (let index = 0; index < blueprint.cells.length; index++) {
+      if (!blueprint.cells[index].mine && !blueprint.cells[index].revealed) {
+        const tile = page.locator(cellSelector(index));
+        if (!(await tile.getAttribute('class'))?.includes('revealed')) await tile.click();
+      }
+    }
+    await expect(page.locator('#mine-status')).toHaveAttribute('data-state', 'won');
+    await expect(page.locator('#mine-best')).toHaveText('00:00');
+    await expect(page.getByRole('status')).not.toContainText('新的最佳记录');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('little-break-minesweeper-records')!).easy)).toBe(0);
+    await other.close();
+  });
+}

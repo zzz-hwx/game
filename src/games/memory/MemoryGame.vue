@@ -31,9 +31,9 @@ function syncClock(): void {
   if (wasWaiting && game.mismatchMs === 0) announcement.value = '记住它们的位置，再找一对吧。';
 }
 
-function focusCard(index = focusedCard.value): void {
+function focusCard(index = focusedCard.value, preventScroll = true): void {
   focusedCard.value = index;
-  void nextTick(() => board.value?.querySelector<HTMLButtonElement>(`[data-card="${index}"]`)?.focus({ preventScroll: true }));
+  void nextTick(() => board.value?.querySelector<HTMLButtonElement>(`[data-card="${index}"]`)?.focus({ preventScroll }));
 }
 
 function flip(index: number): void {
@@ -103,7 +103,7 @@ function onBoardKey(event: KeyboardEvent): void {
   };
   if (event.key in targets) {
     event.preventDefault();
-    focusCard(targets[event.key]);
+    focusCard(targets[event.key], false);
   }
 }
 

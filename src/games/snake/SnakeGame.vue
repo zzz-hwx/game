@@ -67,8 +67,16 @@ function formatScore(value: number): string {
 
 function savePreferences(): void {
   try {
+    best.value = Math.max(best.value, parsePreferences(localStorage.getItem(STORAGE_KEY)).best)
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ best: best.value, level: level.value, sound: soundEnabled.value }))
   } catch { /* Storage may be disabled. The game still works for this session. */ }
+}
+
+function onStorage(event: StorageEvent): void {
+  if (event.key !== STORAGE_KEY) return
+  try {
+    if (event.storageArea === localStorage) best.value = Math.max(best.value, parsePreferences(localStorage.getItem(STORAGE_KEY)).best)
+  } catch { /* Local storage can be unavailable. */ }
 }
 
 function clearTimer(): void {
@@ -377,6 +385,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('blur', onBlur)
   window.addEventListener('resize', resizeCanvas)
+  window.addEventListener('storage', onStorage)
 })
 
 onBeforeUnmount(() => {
@@ -388,6 +397,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('blur', onBlur)
   window.removeEventListener('resize', resizeCanvas)
+  window.removeEventListener('storage', onStorage)
   for (const { oscillator, gain } of tones) {
     oscillator.onended = null
     try { oscillator.stop() } catch { /* It may already have stopped. */ }

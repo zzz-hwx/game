@@ -70,11 +70,11 @@ button:disabled { cursor: default; }
 .card-title h3 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: .5px; }
 .card-title > span { font: 8px Consolas, monospace; color: #a2aa96; letter-spacing: 1px; }
 .card-tagline { margin: 12px 0 9px; font-size: 11px; color: #69795c; letter-spacing: .4px; }
-.card-description { font-size: 10px; color: #929b86; line-height: 1.9; margin: 0; min-height: 42px; letter-spacing: .3px; }
-.card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 21px; padding: 17px 0 19px; border-top: 1px solid #e9ecdf; }
-.card-controls { display: flex; align-items: center; gap: 6px; font-size: 8px; color: #9ba48e; }
-.card-controls svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
-.play-link { color: var(--card-color); display: flex; align-items: center; gap: 13px; font-size: 11px; font-weight: 600; }
+.card-description { font-size: 12px; color: #66735b; line-height: 1.9; margin: 0; min-height: 46px; letter-spacing: .3px; }
+.card-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 21px; padding: 17px 0 19px; border-top: 1px solid #e9ecdf; }
+.card-controls { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #66735b; }
+.card-controls svg { width: 15px; height: 15px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.play-link { color: var(--card-color); display: flex; align-items: center; gap: 13px; margin-left: auto; font-size: 11px; font-weight: 600; }
 .play-arrow { display: grid; place-items: center; height: 29px; width: 29px; background: var(--card-background); border-radius: 50%; font-size: 17px; transition: transform .2s; }
 .game-card-link:hover .play-arrow { transform: rotate(45deg); }
 .lobby-note { display: flex; align-items: center; gap: 17px; margin-top: 35px; padding: 22px 24px; border: 1px dashed #d6ddc7; border-radius: 10px; background: #f0f2e6; }
@@ -135,9 +135,8 @@ button:disabled { cursor: default; }
   .card-title h3 { font-size: 24px; }
   .card-title > span { font-size: 9px; letter-spacing: 1px; }
   .card-tagline { font-size: 12px; }
-  .card-description { font-size: 11px; min-height: 0; }
+  .card-description { min-height: 0; }
   .card-bottom { margin-top: 21px; padding-bottom: 22px; }
-  .card-controls { font-size: 9px; }
   .play-link { font-size: 12px; }
   .play-arrow { width: 32px; height: 32px; }
   .lobby-note { padding: 20px 16px; gap: 12px; margin-top: 29px; }

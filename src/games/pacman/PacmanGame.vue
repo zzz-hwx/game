@@ -59,8 +59,17 @@ function syncActors(): void {
 function saveBest(): void {
   if (game.score <= best.value) return;
   best.value = game.score;
-  try { localStorage.setItem(storageKey, String(best.value)); }
-  catch { storageAvailable.value = false; }
+  try {
+    const value = Number(localStorage.getItem(storageKey));
+    if (Number.isSafeInteger(value) && value >= 0) best.value = Math.max(best.value, value);
+    localStorage.setItem(storageKey, String(best.value));
+  } catch { storageAvailable.value = false; }
+}
+
+function syncBest(event: StorageEvent): void {
+  if (event.key !== storageKey || event.storageArea !== localStorage) return;
+  const value = Number(event.newValue);
+  if (Number.isSafeInteger(value) && value >= 0) best.value = Math.max(best.value, value);
 }
 
 function action(): void {
@@ -90,6 +99,7 @@ function directionPointer(event: PointerEvent, direction: Direction): void {
 }
 
 function autoPause(): void {
+  resumeAfterDialog = false;
   if (game.status !== 'playing') return;
   game.pause();
   syncActors();
@@ -109,6 +119,7 @@ function requestRestart(): void {
 function cancelRestart(): void {
   confirmDialog.value?.close();
   if (resumeAfterDialog) game.start();
+  resumeAfterDialog = false;
   syncActors();
   focusBoard();
 }
@@ -116,6 +127,7 @@ function cancelRestart(): void {
 function restart(): void {
   confirmDialog.value?.close();
   game.restart();
+  resumeAfterDialog = false;
   syncActors();
   announcement.value = '新的一局准备好了，最高分已保留。';
   focusBoard();
@@ -198,6 +210,7 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('visibilitychange', visibilityChange);
   window.addEventListener('blur', autoPause);
+  window.addEventListener('storage', syncBest);
   frame = requestAnimationFrame(animate);
 });
 onBeforeUnmount(() => {
@@ -205,6 +218,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeyDown);
   document.removeEventListener('visibilitychange', visibilityChange);
   window.removeEventListener('blur', autoPause);
+  window.removeEventListener('storage', syncBest);
   pointer = null;
 });
 </script>

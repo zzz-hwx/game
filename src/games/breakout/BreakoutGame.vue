@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import SvgIcon from '../../components/SvgIcon.vue';
-import { BreakoutGame, WIDTH, HEIGHT, MAX_LEVELS } from './engine';
+import { BreakoutGame, WIDTH, HEIGHT, MAX_LEVELS, PADDLE_WIDTH } from './engine';
 import { drawGame } from './renderer';
 
 const game = reactive(new BreakoutGame());
@@ -25,18 +25,43 @@ const progress = computed(() => Math.round((game.total - game.remaining) / game.
 const keys = new Set<string>();
 let context: CanvasRenderingContext2D | null = null;
 let frame = 0;
-let lastTime = 0;
+let lastTime: number | null = null;
+let needsDraw = false;
 let pointerId: number | null = null;
 let resumeAfterDialog = false;
 let reduceMotion = false;
 const trail: { x: number; y: number }[] = [];
 
+function direction(): -1 | 0 | 1 {
+  const left = keys.has('ArrowLeft') || keys.has('KeyA');
+  const right = keys.has('ArrowRight') || keys.has('KeyD');
+  return left === right ? 0 : left ? -1 : 1;
+}
+function shouldAnimate(): boolean {
+  if (document.hidden || confirmDialog.value?.open) return false;
+  if (game.status === 'playing') return true;
+  if (game.status !== 'ready' && game.status !== 'life-lost') return false;
+  return direction() < 0 ? game.paddleX > PADDLE_WIDTH / 2
+    : direction() > 0 && game.paddleX < WIDTH - PADDLE_WIDTH / 2;
+}
+function stopAnimation(): void {
+  cancelAnimationFrame(frame);
+  frame = 0;
+  lastTime = null;
+}
+function updateAnimation(redraw = false): void {
+  needsDraw ||= redraw;
+  // Keep a pending final draw, but never leave a frame queued in a hidden tab.
+  if (!document.hidden && (needsDraw || shouldAnimate())) {
+    if (!frame) frame = requestAnimationFrame(animate);
+  } else stopAnimation();
+}
 function focusBoard(): void { void nextTick(() => board.value?.focus({ preventScroll: true })); }
 function resetInput(): void {
   keys.clear();
   if (pointerId !== null && board.value?.hasPointerCapture(pointerId)) board.value.releasePointerCapture(pointerId);
   pointerId = null;
-  lastTime = 0;
+  lastTime = null;
   trail.length = 0;
 }
 function action(): void {
@@ -48,34 +73,44 @@ function action(): void {
     game.start();
   }
   resetInput();
+  updateAnimation(true);
   announcement.value = game.status === 'playing' ? `第 ${game.level} 关，游戏开始。` : overlay.value.title;
   focusBoard();
 }
 function autoPause(): void {
+  const redraw = game.status === 'playing' || trail.length > 0;
   resetInput();
   resumeAfterDialog = false;
-  if (game.status !== 'playing') return;
-  game.pause();
-  announcement.value = '游戏已自动暂停，回来后可以继续。';
+  if (game.status === 'playing') {
+    game.pause();
+    announcement.value = '游戏已自动暂停，回来后可以继续。';
+  }
+  updateAnimation(redraw);
 }
-function visibilityChange(): void { if (document.hidden) autoPause(); }
+function visibilityChange(): void {
+  if (document.hidden) autoPause();
+  else updateAnimation();
+}
 function requestRestart(): void {
   if (game.status === 'ready' && game.level === 1 && game.score === 0) return;
   resumeAfterDialog = game.status === 'playing';
   game.pause();
   resetInput();
   confirmDialog.value?.showModal();
+  updateAnimation(true);
 }
 function cancelRestart(): void {
   confirmDialog.value?.close();
   if (resumeAfterDialog) game.start();
   resetInput();
+  updateAnimation(true);
   focusBoard();
 }
 function restart(): void {
   confirmDialog.value?.close();
   game.restart();
   resetInput();
+  updateAnimation(true);
   announcement.value = '新的一局准备好了，最高纪录已保留。';
   focusBoard();
 }
@@ -85,6 +120,7 @@ function onKeyDown(event: KeyboardEvent): void {
   if (['ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'].includes(event.code)) {
     event.preventDefault();
     keys.add(event.code);
+    updateAnimation();
   } else if (event.code === 'Space') {
     event.preventDefault();
     if (!event.repeat) action();
@@ -96,12 +132,17 @@ function onKeyDown(event: KeyboardEvent): void {
     requestRestart();
   }
 }
-function onKeyUp(event: KeyboardEvent): void { keys.delete(event.code); }
+function onKeyUp(event: KeyboardEvent): void {
+  keys.delete(event.code);
+  updateAnimation();
+}
 function steer(event: PointerEvent): void {
   if (!event.isPrimary || confirmDialog.value?.open) return;
   if (event.pointerType !== 'mouse' && pointerId !== event.pointerId) return;
   const bounds = canvas.value?.getBoundingClientRect();
+  const previousX = game.paddleX;
   if (bounds) game.movePaddle((event.clientX - bounds.left) / bounds.width * WIDTH);
+  if (game.paddleX !== previousX) updateAnimation(true);
 }
 function pointerDown(event: PointerEvent): void {
   if (!event.isPrimary || event.button !== 0 || confirmDialog.value?.open) return;
@@ -118,16 +159,23 @@ function pointerUp(event: PointerEvent): void {
 function saveBest(): void {
   if (game.score <= best.value) return;
   best.value = game.score;
-  try { localStorage.setItem(storageKey, String(best.value)); }
-  catch { storageAvailable.value = false; }
+  try {
+    const value = Number(localStorage.getItem(storageKey));
+    if (Number.isSafeInteger(value) && value >= 0) best.value = Math.max(best.value, value);
+    localStorage.setItem(storageKey, String(best.value));
+  } catch { storageAvailable.value = false; }
+}
+function syncBest(event: StorageEvent): void {
+  if (event.key !== storageKey || event.storageArea !== localStorage) return;
+  const value = Number(event.newValue);
+  if (Number.isSafeInteger(value) && value >= 0) best.value = Math.max(best.value, value);
 }
 function animate(time: number): void {
-  const dt = lastTime ? Math.min((time - lastTime) / 1000, .05) : 0;
+  frame = 0;
+  const dt = lastTime !== null ? Math.min((time - lastTime) / 1000, .05) : 0;
   lastTime = time;
   const previousStatus = game.status;
-  const left = keys.has('ArrowLeft') || keys.has('KeyA');
-  const right = keys.has('ArrowRight') || keys.has('KeyD');
-  game.step(dt, left === right ? 0 : left ? -1 : 1);
+  if (shouldAnimate()) game.step(dt, direction());
   if (game.status !== previousStatus) {
     resetInput();
     announcement.value = overlay.value.title + '。' + overlay.value.text;
@@ -138,7 +186,8 @@ function animate(time: number): void {
     if (trail.length > 8) trail.shift();
   }
   if (context) drawGame(context, game, trail);
-  frame = requestAnimationFrame(animate);
+  needsDraw = false;
+  updateAnimation();
 }
 onMounted(() => {
   try {
@@ -158,15 +207,16 @@ onMounted(() => {
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('visibilitychange', visibilityChange);
   window.addEventListener('blur', autoPause);
-  frame = requestAnimationFrame(animate);
+  window.addEventListener('storage', syncBest);
 });
 onBeforeUnmount(() => {
-  cancelAnimationFrame(frame);
+  stopAnimation();
   resetInput();
   document.removeEventListener('keydown', onKeyDown);
   document.removeEventListener('keyup', onKeyUp);
   document.removeEventListener('visibilitychange', visibilityChange);
   window.removeEventListener('blur', autoPause);
+  window.removeEventListener('storage', syncBest);
 });
 </script>
 
