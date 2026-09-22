@@ -12,6 +12,7 @@ const entries = [
   { id: 'gomoku', name: '五子棋', selector: '.gomoku-game' },
   { id: 'breakout', name: '打砖块', selector: '.breakout-game' },
   { id: 'memory', name: '翻牌配对', selector: '.memory-game' },
+  { id: 'flappy-bird', name: 'Flappy Bird', selector: '.flappy-bird-game' },
 ];
 
 async function expectNoOverflow(page: Page) {

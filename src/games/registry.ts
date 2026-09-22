@@ -134,4 +134,16 @@ export const games: GameDefinition[] = [
     background: '#eaf0dc',
     component: () => import('./memory/MemoryGame.vue'),
   },
+  {
+    id: 'flappy-bird',
+    name: 'Flappy Bird',
+    englishName: 'A LITTLE FLIGHT',
+    tagline: '轻轻拍翅，把烦恼留在地面。',
+    description: '跟着小鸟，穿过一片片绿意。找到自己的节奏，让快乐飞得再远一点。',
+    category: '反应挑战',
+    controls: '空格 / 点击 / 触屏',
+    color: '#729680',
+    background: '#e0ece2',
+    component: () => import('./flappy-bird/FlappyBirdGame.vue'),
+  },
 ];

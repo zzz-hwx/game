@@ -102,6 +102,27 @@
     <path d="M49 50v12m-6-6h12M319 158v12m-6-6h12m-74-115 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="none" stroke="#acbd8a" stroke-width="1.5"/>
     <text x="49" y="214" fill="#8f9f73" font-size="8" letter-spacing="2">FLIP A CARD. FIND A LITTLE JOY.</text>
   </symbol>
+  <symbol id="flappy-bird" viewBox="0 0 360 240">
+    <circle cx="181" cy="118" r="83" fill="#d2e2cc"/>
+    <circle cx="279" cy="66" r="19" fill="#f6efc9"/>
+    <path d="M35 88h49a12 12 0 0 0-7-22 17 17 0 0 0-32 5 9 9 0 0 0-10 17Z" fill="#f6f8ee"/>
+    <path d="M244 130h46a10 10 0 0 0-7-18 15 15 0 0 0-28 4 8 8 0 0 0-11 14Z" fill="#f6f8ee"/>
+    <path d="M76 186q60-44 118-14t101-3v29H65Z" fill="#bed3b1"/>
+    <path d="M242 42h42v40h-42Zm0 118h42v37h-42Z" fill="#86a879"/>
+    <path d="M249 42h9v40h-9Zm0 118h9v37h-9Z" fill="#b3cb97"/>
+    <rect x="237" y="75" width="52" height="13" rx="3" fill="#9cba86" stroke="#719367" stroke-width="2"/>
+    <rect x="237" y="153" width="52" height="13" rx="3" fill="#9cba86" stroke="#719367" stroke-width="2"/>
+    <path d="M72 142q28 27 50-2t42-16" fill="none" stroke="#94ac86" stroke-width="2" stroke-dasharray="4 5"/>
+    <g transform="translate(175 117) rotate(-12)">
+      <ellipse rx="30" ry="25" fill="#edcb75" stroke="#a08a52" stroke-width="2"/>
+      <ellipse cx="-17" cy="7" rx="16" ry="10" fill="#f7e0a0" stroke="#a08a52" stroke-width="2"/>
+      <ellipse cx="14" cy="-8" rx="12" ry="14" fill="#fffdf1"/>
+      <circle cx="19" cy="-8" r="4" fill="#425c46"/>
+      <rect x="19" y="6" width="24" height="10" rx="5" fill="#de9c70" stroke="#a08a52" stroke-width="2"/>
+    </g>
+    <path d="M55 198h250" stroke="#9db584" stroke-width="3" stroke-linecap="round"/>
+    <text x="180" y="220" text-anchor="middle" fill="#7d9879" font-size="8" letter-spacing="2">A LITTLE FLAP. A LITTLE FREEDOM.</text>
+  </symbol>
   <symbol id="default" viewBox="0 0 360 240">
       <rect x="100" y="55" width="160" height="130" rx="35" fill="currentColor" opacity=".12" />
       <path d="M132 100h40m-20-20v40" stroke="currentColor" stroke-width="8" stroke-linecap="round" />

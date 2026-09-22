@@ -2,7 +2,7 @@
 import SvgIcon from './SvgIcon.vue';
 
 defineProps<{ kind: string }>();
-const kinds = ['snake', 'tetris', 'link', 'minesweeper', '2048', 'sokoban', 'pacman', 'gomoku', 'breakout', 'memory'];
+const kinds = ['snake', 'tetris', 'link', 'minesweeper', '2048', 'sokoban', 'pacman', 'gomoku', 'breakout', 'memory', 'flappy-bird'];
 </script>
 
 <template>

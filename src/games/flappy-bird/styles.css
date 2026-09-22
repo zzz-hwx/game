@@ -1,0 +1,194 @@
+.flappy-bird-game { max-width: 1220px; margin: auto; padding: 34px 36px 0; color: #3e5144; }
+.flappy-bird-game svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.edition-line { display: flex; justify-content: space-between; gap: 16px; color: #849383; font: 9px Consolas, "Microsoft YaHei", monospace; letter-spacing: 1px; }
+.edition-line > span { display: flex; align-items: center; gap: 10px; }
+.edition-line i { width: 20px; height: 2px; background: #94b19b; }
+.edition-line b { font-weight: 400; color: #b5bda9; }
+.edition-line > span:last-child { font-size: 8px; color: #9aab98; }
+.game-layout { display: grid; grid-template-columns: minmax(190px, 1fr) minmax(340px, 440px) minmax(200px, 1fr); gap: 38px; align-items: start; margin: 35px 0 32px; }
+.intro { padding-top: 9px; }
+.eyebrow { font-size: 9px; letter-spacing: 1px; color: #82987f; }
+.intro h1 { font-family: "Segoe UI", sans-serif; font-size: clamp(54px, 5.2vw, 72px); line-height: 1.02; font-weight: 750; letter-spacing: -3px; margin: 22px 0 17px; color: #42654e; }
+.intro h1 > span { color: #d9b761; }
+.english-title { font-size: 9px; color: #9ba48a; }
+.intro h2 { font-size: 25px; line-height: 1.8; font-weight: 550; margin: 28px 0 0; }
+.highlight { position: relative; isolation: isolate; white-space: nowrap; }
+.highlight::after { content: ''; position: absolute; left: -2px; right: 0; bottom: 0; height: 10px; border-radius: 3px; background: #dce5bf; transform: rotate(-2deg); z-index: -1; }
+.intro-copy { font-size: 10px; line-height: 2.1; color: #8c9682; margin: 17px 0 23px; }
+.controls-guide { margin-top: 26px; padding-top: 24px; border-top: 1px solid #dfe4d3; }
+.controls-guide h3 { font-size: 11px; font-weight: 500; margin: 0; }
+.controls-guide h3 span { display: block; margin-top: 8px; color: #99a18c; font: 7px Consolas, monospace; letter-spacing: .8px; }
+kbd { font-family: Consolas, monospace; font-weight: 400; }
+.keyboard { display: flex; align-items: center; gap: 7px; margin: 20px 0 13px; }
+.keyboard kbd { display: grid; place-items: center; min-width: 31px; padding: 0 10px; height: 31px; border: 1px solid #d7dec7; border-bottom-width: 3px; border-radius: 5px; background: #fafaf2; color: #7e8e66; font-size: 11px; }
+.keyboard span { font-size: 9px; margin: 0 4px; color: #939c84; }
+.controls-guide p { font-size: 10px; line-height: 2.1; color: #859075; }
+.flight-sketch { width: 185px; margin: 20px 0 0 -10px; transform: rotate(-6deg); opacity: .85; }
+.flight-sketch :deep(svg) { width: 100%; height: auto; stroke: none; }
+.slow-note { font-size: 9px; line-height: 1.9; color: #99a088; margin: 9px 0 0 4px; }
+.play-area { min-width: 0; }
+.score-strip { display: grid; grid-template-columns: 1fr 1fr 1.05fr; padding: 17px 0; margin-bottom: 16px; background: #fafbf3; border: 1px solid #dfe3d1; border-radius: 10px; }
+.score-strip > div { min-width: 0; padding: 0 18px; border-left: 1px solid #e3e7d8; }
+.score-strip > div:first-child { border: 0; }
+.score-strip > div > span { display: flex; align-items: center; gap: 5px; color: #859171; font-size: 9px; white-space: nowrap; }
+.score-strip small { font: 7px Consolas, monospace; letter-spacing: .6px; }
+.score-strip svg { width: 12px; height: 12px; }
+.score-strip strong { display: block; color: #839579; font: 600 29px/1.15 Consolas, monospace; font-variant-numeric: tabular-nums; margin-top: 8px; overflow-wrap: anywhere; }
+.score-strip > div:first-child strong { color: #486c50; }
+.score-strip .flight-time { font-size: 25px; padding-top: 4px; }
+.board-shell { background: #f9faf1; border: 1px solid #d6ddc5; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 0 #e0e5d1, 0 12px 24px #42522c08; }
+.board-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 15px 16px; }
+.board-heading > span:first-child { display: flex; gap: 7px; align-items: center; font-size: 10px; }
+.board-heading i, .board-status i, footer i { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #94ac7d; }
+.board-heading small { font: 7px Consolas, monospace; color: #9aa488; letter-spacing: .5px; }
+.classic-tag { color: #8da186; background: #ecf0e1; border: 1px solid #dfe5cd; border-radius: 4px; padding: 4px 6px; font: 7px Consolas, monospace; letter-spacing: 1px; }
+.flappy-board { position: relative; width: 100%; touch-action: none; user-select: none; -webkit-user-select: none; outline: none; }
+.flappy-board:focus-visible { outline: 3px solid #73936c; outline-offset: -3px; }
+.flappy-board canvas { display: block; width: 100%; height: auto; }
+.board-status { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 13px 15px; font-size: 9px; color: #7d8e6a; }
+.board-status > span { display: flex; gap: 7px; align-items: center; }
+.board-status > span:last-child { font-size: 8px; color: #97a189; }
+.board-status b { color: #789b73; font: 11px Consolas, monospace; }
+.board-status .flying { background: #4d8a65; box-shadow: 0 0 0 3px #4d8a6515; }
+.game-actions { display: grid; grid-template-columns: 1.35fr 1fr; gap: 11px; margin-top: 21px; }
+.primary-button, .secondary-button, .gold-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 11px 13px; border-radius: 7px; font-size: 11px; font-weight: 500; }
+.primary-button { background: #52765a; border: 1px solid #52765a; color: #f9faee; }
+.primary-button:hover { background: #42664b; }
+.secondary-button { background: #f9faf1; border: 1px solid #d7dfc6; color: #7a8968; }
+.secondary-button:hover:not(:disabled) { background: #eaf0dc; }
+.secondary-button:disabled { opacity: .45; }
+.gold-button { background: #edce83; border: 1px solid #d7bb75; box-shadow: 0 3px 0 #c6ac6d; color: #5e603c; }
+.gold-button:hover { background: #f3d994; }
+.game-actions svg { width: 15px; height: 15px; }
+.game-actions kbd { font-size: 8px; opacity: .65; border: 1px solid currentColor; border-radius: 3px; padding: 1px 4px; margin-left: auto; }
+.save-note { text-align: center; font-size: 8px; line-height: 1.8; color: #929c83; margin: 16px 0 0; }
+.sidebar { display: flex; flex-direction: column; gap: 29px; padding-top: 1px; }
+.flight-card { border: 1px solid #d8e1cb; border-radius: 11px; background: #edf1e3; padding: 22px 18px 16px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.section-heading h2 { font-size: 12px; font-weight: 600; margin: 0; }
+.section-heading > span { font: 7px Consolas, monospace; letter-spacing: .4px; color: #9aab8c; white-space: nowrap; }
+.flight-card .section-heading { display: block; }
+.flight-card .section-heading > span { display: block; margin-top: 8px; letter-spacing: 1.5px; }
+.card-subtitle { font-size: 9px; color: #929d84; margin: 17px 0 18px; }
+.flight-route { display: flex; align-items: center; gap: 8px; margin: 26px 0 30px; color: #8ea578; }
+.flight-route span { font-size: 8px; white-space: nowrap; }
+.flight-route i { flex: 1; border-top: 1px dashed #b6c6a4; }
+.flight-route svg { width: 25px; height: 25px; transform: rotate(12deg); }
+.goal-heading { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #7d8f6d; align-items: center; }
+.goal-heading strong { font: 20px Consolas, monospace; }
+.goal-heading small { font-size: 10px; color: #9aa88b; }
+.progress-meter { height: 5px; border-radius: 3px; background: #dce5ce; overflow: hidden; margin-top: 12px; }
+.progress-meter > span { display: block; height: 100%; background: #97b07f; }
+.goal-note { font-size: 8px; line-height: 1.9; color: #939e80; margin: 12px 0 0; }
+.rules-card { padding: 2px; }
+.rules-card ol { list-style: none; padding: 0; margin: 23px 0 0; }
+.rules-card li { display: flex; gap: 12px; margin-bottom: 25px; }
+.rules-card li:last-child { margin: 0; }
+.rules-card li > span { color: #a1af88; font: 10px Consolas, monospace; padding-top: 2px; }
+.rules-card h3 { font-size: 10px; font-weight: 500; color: #70815d; margin: 0 0 7px; }
+.rules-card p { font-size: 9px; line-height: 1.9; color: #929d82; margin: 0; }
+.little-note { position: relative; border-top: 1px solid #dfe5d4; padding: 23px 4px 0; }
+.little-note > span { font: 7px Consolas, monospace; letter-spacing: 1px; color: #a5ae99; }
+.little-note p { font-size: 17px; line-height: 1.9; color: #94a186; margin: 14px 0 0; }
+.little-note p span { color: #6d8b68; }
+.little-note svg { position: absolute; right: 12px; bottom: 4px; width: 27px; height: 27px; color: #b2c19b; transform: rotate(20deg); }
+footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e0e5d4; padding: 23px 0; font-size: 9px; color: #99a489; }
+footer > span { display: flex; align-items: center; gap: 7px; }
+footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1px; }
+footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b; }
+.board-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; background: #dbe8d22e; }
+.overlay-card { width: 100%; max-width: 294px; padding: 26px 20px 23px; background: #fafbf0ed; border: 1px solid #fffdf4; border-radius: 15px; box-shadow: 0 12px 35px #46624417; text-align: center; backdrop-filter: blur(5px); }
+.flight-badge { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 20px; background: #e7edcf; color: #8a9e6d; border: 1px solid #d6dfba; }
+.flight-badge svg { width: 23px; height: 23px; }
+.overlay-eyebrow { font: 7px Consolas, monospace; color: #a1aa87; letter-spacing: .7px; }
+.overlay-card h2 { font-size: 23px; letter-spacing: -.5px; color: #52734e; margin: 13px 0 11px; }
+.overlay-card p { font-size: 10px; color: #8d997e; line-height: 2; margin: 0 auto 23px; max-width: 225px; }
+.overlay-card .gold-button { min-width: 180px; gap: 24px; }
+.overlay-hint { display: block; font-size: 8px; color: #9fa98e; margin-top: 17px; }
+.result-score { display: flex; justify-content: center; align-items: baseline; gap: 10px; color: #8e9d80; font-size: 9px; margin: -7px 0 19px; }
+.result-score strong { color: #64865b; font: 30px Consolas, monospace; }
+.confirm-dialog { width: min(420px, calc(100% - 32px)); border: 1px solid #d8dfc9; border-radius: 14px; padding: 30px; background: #f9faf0; color: #405434; box-shadow: 0 20px 80px #23321933; }
+.confirm-dialog::backdrop { background: #2c392652; backdrop-filter: blur(4px); }
+.confirm-dialog h2 { font-size: 22px; margin: 17px 0 14px; }
+.confirm-dialog p { color: #849271; font-size: 11px; line-height: 1.9; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 26px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 1100px) {
+  .flappy-bird-game { padding: 29px 26px 0; }
+  .game-layout { gap: 24px; grid-template-columns: minmax(170px, 1fr) minmax(320px, 420px) minmax(175px, 1fr); }
+  .intro h1 { font-size: 62px; }
+  .intro h2 { font-size: 22px; }
+  .score-strip > div { padding: 0 13px; }
+  .score-strip > div > span > small { display: none; }
+  .section-heading > span { font-size: 6px; }
+  .flight-card { padding: 20px 14px 15px; }
+}
+@media (max-width: 920px) {
+  .flappy-bird-game { max-width: 820px; }
+  .game-layout { grid-template-columns: minmax(185px, 1fr) minmax(320px, 420px); gap: 28px; }
+  .sidebar { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  .flight-card { padding: 24px; }
+  .rules-card { grid-column: 2; grid-row: 1 / 3; }
+  .little-note { padding: 18px 4px 0; }
+  .little-note p { font-size: 15px; margin-top: 9px; }
+}
+@media (max-width: 600px) {
+  .flappy-bird-game { max-width: 470px; padding: 22px 22px 0; }
+  .edition-line { font-size: 7px; letter-spacing: .6px; }
+  .edition-line > span:last-child { display: none; }
+  .game-layout { display: flex; flex-direction: column; gap: 22px; margin: 22px 0 26px; }
+  .intro { position: relative; padding: 0; width: 100%; }
+  .eyebrow { font-size: 8px; letter-spacing: .8px; }
+  .intro h1 { font-size: 43px; letter-spacing: -2px; margin: 12px 0 9px; }
+  .intro h1 br { display: none; }
+  .intro h1 { word-spacing: 4px; }
+  .english-title { font-size: 7px; }
+  .intro h2, .intro-copy, .controls-guide h3, .keyboard, .flight-sketch, .slow-note { display: none; }
+  .controls-guide { margin: 12px 0 0; padding: 0; border: 0; }
+  .controls-guide p { margin: 0; font-size: 9px; line-height: 1.8; }
+  .play-area { width: 100%; }
+  .score-strip { padding: 14px 0; margin-bottom: 14px; }
+  .score-strip > div { padding: 0 15px; }
+  .score-strip strong { font-size: 25px; }
+  .score-strip .flight-time { font-size: 22px; padding-top: 3px; }
+  .score-strip > div > span { font-size: 8px; }
+  .board-heading { padding: 12px 13px; }
+  .board-heading > span:first-child { font-size: 9px; }
+  .board-heading small { font-size: 6px; }
+  .board-status { padding: 12px; font-size: 8px; }
+  .game-actions { gap: 10px; margin-top: 19px; }
+  .primary-button, .secondary-button { font-size: 10px; }
+  .save-note { font-size: 7px; }
+  .sidebar { width: 100%; grid-template-columns: 1fr; gap: 24px; }
+  .flight-card .section-heading { display: flex; }
+  .flight-card .section-heading > span { margin: 0; }
+  .flight-route { margin: 22px 0; }
+  .rules-card { grid-column: auto; grid-row: auto; padding: 0 3px; }
+  .rules-card h3 { font-size: 11px; }
+  .rules-card p { font-size: 10px; }
+  .goal-note { font-size: 9px; }
+  .little-note { display: none; }
+  .overlay-card { max-width: 265px; padding: 22px 17px 19px; }
+  .overlay-card h2 { font-size: 21px; }
+  .overlay-eyebrow { font-size: 6px; }
+  .flight-badge { width: 36px; height: 36px; margin-bottom: 16px; }
+  .flight-badge svg { width: 20px; height: 20px; }
+  .overlay-card p { font-size: 9px; margin-bottom: 19px; }
+  footer { font-size: 8px; padding: 20px 0; }
+  footer > span:last-child { font-size: 5px; letter-spacing: .2px; }
+  footer b { margin-left: 0; font-size: 16px; }
+}
+@media (max-width: 360px) {
+  .flappy-bird-game { padding-left: 16px; padding-right: 16px; }
+  .intro h1 { font-size: 39px; }
+  .score-strip > div { padding: 0 11px; }
+  .score-strip strong, .score-strip .flight-time { font-size: 22px; }
+  .board-heading small { display: none; }
+  .board-overlay { padding: 14px; }
+  .overlay-card { padding: 17px 12px; }
+  .overlay-card h2 { font-size: 19px; }
+  .overlay-hint { font-size: 7px; }
+  .game-actions kbd { display: none; }
+  .confirm-dialog { padding: 23px; }
+  .confirm-dialog h2 { font-size: 20px; }
+}
