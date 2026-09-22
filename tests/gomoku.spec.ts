@@ -152,7 +152,7 @@ test('离开页面清理电脑任务，再进入可正常开局', async ({ page 
   await cell(page, 7, 7).click();
   await page.getByRole('link', { name: '返回大厅' }).click();
   await page.clock.runFor(1000);
-  await expect(page.locator('.game-card-link')).toHaveCount(9);
+  await expect(page.locator('.game-card-link')).toHaveCount(10);
   await page.getByRole('link', { name: '开始玩五子棋', exact: true }).click();
   await expect(page.locator('#gomoku-moves')).toHaveText('00');
   await cell(page, 7, 7).click();

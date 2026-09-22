@@ -11,6 +11,7 @@ const entries = [
   { id: 'pacman', name: '吃豆人', selector: '.pacman-game' },
   { id: 'gomoku', name: '五子棋', selector: '.gomoku-game' },
   { id: 'breakout', name: '打砖块', selector: '.breakout-game' },
+  { id: 'memory', name: '翻牌配对', selector: '.memory-game' },
 ];
 
 async function expectNoOverflow(page: Page) {
@@ -71,6 +72,7 @@ test('大厅和所有已注册游戏的外部 SVG 均能加载并渲染', async 
 test('游戏切换音效及暂停时保持外部 SVG 引用', async ({ page }) => {
   for (const [url, snake] of [['/#/games/snake', true], ['/#/games/link', false]] as const) {
     await page.goto(url);
+    await expect(page.locator(snake ? '.snake-game' : '.link-game')).toBeVisible();
     await expect(page.locator('#start-button')).toBeVisible();
     const sound = page.locator('#sound-button use');
     const originalSound = await sound.getAttribute('href');

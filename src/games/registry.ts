@@ -122,4 +122,16 @@ export const games: GameDefinition[] = [
     background: '#f0e8d9',
     component: () => import('./breakout/BreakoutGame.vue'),
   },
+  {
+    id: 'memory',
+    name: '翻牌配对',
+    englishName: 'FLIP & FIND',
+    tagline: '翻开小美好，记住小快乐。',
+    description: '翻一翻，找一找。让相同的水果再次相遇，把小小的快乐，一对一对收集起来。',
+    category: '记忆配对',
+    controls: '鼠标 / 触屏 / 方向键',
+    color: '#859465',
+    background: '#eaf0dc',
+    component: () => import('./memory/MemoryGame.vue'),
+  },
 ];
