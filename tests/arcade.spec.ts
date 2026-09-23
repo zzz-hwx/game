@@ -91,6 +91,71 @@ test('游戏切换音效及暂停时保持外部 SVG 引用', async ({ page }) =
   }
 });
 
+test('连连看页面与顶部背景一致，棋盘卡片和按钮使用米白浅绿配色', async ({ page }) => {
+  await page.goto('/#/games/link');
+  await expect(page.locator('.link-game')).toBeVisible();
+  const pageBackground = await page.locator('html').evaluate((element) => getComputedStyle(element).backgroundColor);
+  await expect(page.locator('.club-header')).toHaveCSS('background-color', pageBackground);
+  for (const selector of ['body', '.arcade-app', '#page-content', '.link-game', '.page-shell', '.hero']) {
+    await expect(page.locator(selector)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  }
+  for (const selector of ['.game-card', '.guide-card', '.record-card', '#hint-button', '#rules-button']) {
+    await expect(page.locator(selector)).toHaveCSS('background-color', 'rgb(253, 253, 248)');
+  }
+  await expect(page.locator('.board-wrap')).toHaveCSS('background-color', 'rgb(234, 240, 216)');
+  await expect(page.locator('#start-button')).toHaveCSS('background-color', 'rgb(49, 94, 59)');
+  await expect(page.locator('#hint-button')).toBeDisabled();
+  await page.locator('[data-level="hard"]').click();
+  await expect(page.locator('.tile')).toHaveCount(64);
+  const tileBackgrounds = await page.locator('.tile').evaluateAll((tiles) => [...new Set(tiles.map((tile) => getComputedStyle(tile).backgroundColor))]);
+  expect(tileBackgrounds).toEqual(['rgb(253, 253, 248)']);
+  for (const mode of ['classic', 'zen', 'gravity']) {
+    await page.locator(`[data-mode="${mode}"]`).click();
+    await expect(page.locator('.mode-picker button.active')).toHaveCSS('background-color', 'rgb(228, 237, 189)');
+    await expect(page.locator('.mode-picker button.active')).toHaveCSS('border-top-color', 'rgb(49, 94, 59)');
+  }
+  await expect(page.locator('.difficulty button.active')).toHaveCSS('background-color', 'rgb(228, 237, 189)');
+  await expectSvgAssets(page);
+  await expectNoOverflow(page);
+});
+
+test('连连看绿色交互状态保留提示和倒计时警示色', async ({ page, isMobile }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/#/games/link');
+  await page.clock.install();
+  const start = page.locator('#start-button');
+  await start.focus();
+  await expect(start).toHaveCSS('outline-color', 'rgb(125, 152, 93)');
+  await expect(start).toHaveCSS('outline-style', 'solid');
+  if (!isMobile) {
+    await start.hover();
+    await expect(start).toHaveCSS('background-color', 'rgb(37, 76, 48)');
+  }
+  await start.click();
+  await page.locator('.tile').first().click();
+  await expect(page.locator('.tile.selected')).toHaveCSS('background-color', 'rgb(228, 237, 189)');
+  await expect(page.locator('.tile.selected')).toHaveCSS('border-top-color', 'rgb(49, 94, 59)');
+  await page.locator('#hint-button').click();
+  await expect(page.locator('.tile.hinted')).toHaveCount(2);
+  await expect(page.locator('.tile.hinted').first()).toHaveCSS('border-top-color', 'rgb(188, 162, 82)');
+  await start.click();
+  await expect(page.locator('#board-overlay')).toBeVisible();
+  await expect(page.locator('#overlay-title')).toHaveCSS('color', 'rgb(41, 62, 46)');
+  await expect(page.locator('#hint-button')).toBeDisabled();
+  await expect(page.locator('#overlay-action')).toHaveCSS('background-color', 'rgb(49, 94, 59)');
+  await page.locator('#overlay-action').click();
+  await expect(page.locator('#board-overlay')).toBeHidden();
+  await page.locator('#reset-button').click();
+  await expect(page.locator('#modal')).toBeVisible();
+  await expect(page.locator('#modal')).toHaveCSS('background-color', 'rgb(253, 253, 248)');
+  await page.locator('#modal-cancel').click();
+  await expect(page.locator('#modal')).toBeHidden();
+  await page.clock.runFor(151000);
+  await expect(page.locator('#timer')).toHaveClass('urgent');
+  await expect(page.locator('#timer')).toHaveCSS('color', 'rgb(195, 68, 79)');
+  await expectNoOverflow(page);
+});
+
 test('大厅展示全部入口，未知地址返回大厅', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));

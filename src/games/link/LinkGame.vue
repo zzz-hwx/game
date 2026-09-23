@@ -31,12 +31,12 @@ const levels = {
 type Level = keyof typeof levels;
 type Status = 'ready' | 'playing' | 'paused' | 'won' | 'lost';
 const fruits = [
-  ['cherry', '樱桃', '#fff0f0'], ['orange', '橙子', '#fff3e5'],
-  ['grape', '葡萄', '#f2eefa'], ['lemon', '柠檬', '#fff9df'],
-  ['strawberry', '草莓', '#fff0f2'], ['watermelon', '西瓜', '#edf5ec'],
-  ['avocado', '牛油果', '#f1f6e7'], ['peach', '桃子', '#fff0e9'],
-  ['pear', '梨子', '#f5f6e7'], ['pineapple', '菠萝', '#fff7e5'],
-  ['kiwi', '猕猴桃', '#eff5e6'], ['blueberry', '蓝莓', '#eef0fc'],
+  ['cherry', '樱桃'], ['orange', '橙子'],
+  ['grape', '葡萄'], ['lemon', '柠檬'],
+  ['strawberry', '草莓'], ['watermelon', '西瓜'],
+  ['avocado', '牛油果'], ['peach', '桃子'],
+  ['pear', '梨子'], ['pineapple', '菠萝'],
+  ['kiwi', '猕猴桃'], ['blueberry', '蓝莓'],
 ] as const;
 interface GameState {
   level: Level;
@@ -417,7 +417,7 @@ function celebrate(): void {
     id,
     style: {
       left: `${Math.random() * 100}%`,
-      background: ['#c3b3ed', '#f2cd91', '#aacabb', '#efb2b8'][id % 4],
+      background: ['#a6bd85', '#e4cf91', '#dce6b4', '#dfb78a'][id % 4],
       animationDelay: `${Math.random() * 0.6}s`,
       animationDuration: `${2 + Math.random() * 1.5}s`,
     },
@@ -602,7 +602,7 @@ onBeforeUnmount(() => {
             <div id="board" ref="boardElement" class="board" :class="{ locked: state.locked }" :style="{ '--cols': config.cols }" :inert="blocked" :aria-label="`水果棋盘，${config.rows}行${config.cols}列`">
               <button v-for="tile in tiles" :key="`${state.revision}-${tile.key}`" type="button" class="tile"
                 :class="{ empty: !tile.fruit, selected: tile.selected, hinted: tile.hinted, wrong: tile.wrong, matched: tile.matched }"
-                :data-row="tile.row" :data-col="tile.col" :style="{ '--tile-bg': tile.fruit?.[2] }"
+                :data-row="tile.row" :data-col="tile.col"
                 :disabled="tile.type === null || state.locked" :aria-hidden="!tile.fruit ? true : undefined"
                 :aria-label="tile.fruit ? `${tile.fruit[1]}，第${tile.row + 1}行第${tile.col + 1}列` : undefined"
                 :aria-pressed="tile.fruit ? tile.selected : undefined" @click="chooseTile({ row: tile.row, col: tile.col }, $event)">
