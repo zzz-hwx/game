@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import SvgIcon from '../../components/SvgIcon.vue';
-import { PacmanGame, POWER_TICKS } from './engine';
+import { MAZES, PacmanGame, POWER_TICKS } from './engine';
 import type { Direction } from './engine';
 import { CELL, drawGame } from './renderer';
 
@@ -27,7 +27,7 @@ const overlay = computed(() => ({
   ready: { label: 'A LITTLE CHASE. A LOT OF JOY.', title: '快乐，开吃！', text: '吃光豆豆，躲开幽灵。小小迷宫，等你出发。', action: '开始游戏' },
   paused: { label: 'TAKE A LITTLE BREATHER', title: '休息一下，快乐不跑', text: '迷宫已暂停，准备好了就继续吧。', action: '继续游戏' },
   'life-lost': { label: 'ANOTHER LITTLE CHANCE', title: '没关系，再出发', text: `还有 ${game.lives} 次机会，收集的豆豆和分数都还在。`, action: '继续出发' },
-  won: { label: 'EVERY LITTLE DOT COUNTS', title: '这一份快乐，收集完毕！', text: '通关奖励 +500 分。下一关，节奏会快一点点。', action: '挑战下一关' },
+  won: { label: 'EVERY LITTLE DOT COUNTS', title: '这一份快乐，收集完毕！', text: `通关奖励 +500 分。${game.mazeIndex === MAZES.length - 1 ? '开启新一轮，回到' : '下一站：'}${MAZES[game.level % MAZES.length].name}。`, action: '挑战下一关' },
   over: { label: 'YOU DID A LOVELY JOB', title: '这趟追逐，很开心！', text: `到达第 ${game.level} 关，收获 ${game.score} 分。再来一次？`, action: '再来一局' },
   playing: { label: '', title: '', text: '', action: '暂停游戏' },
 }[game.status]));
@@ -81,7 +81,7 @@ function action(): void {
     game.start();
   }
   syncActors();
-  announcement.value = game.status === 'playing' ? `第 ${game.level} 关，游戏开始。` : statusText.value;
+  announcement.value = game.status === 'playing' ? `第 ${game.level} 关，${game.maze.name}，游戏开始。` : statusText.value;
   focusBoard();
 }
 
@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
         <span class="english-title">P A C - M A N</span>
         <h2>把小烦恼，<br>一口<span class="highlight">吃掉。</span></h2>
         <p class="intro-copy">沿着豆豆的方向，找一点快乐。<br>偶尔转个弯，也会有新的小惊喜。</p>
-        <span class="mode-tag"><i class="tiny-pacman"></i> 经典迷宫 <b>·</b> 随时来一局</span>
+        <span class="mode-tag"><i class="tiny-pacman"></i> {{ MAZES.length }} 张迷宫 <b>·</b> 循环挑战</span>
         <section class="controls-guide" aria-labelledby="pacman-controls-title">
           <h3 id="pacman-controls-title">快乐，往这个方向<span>FOLLOW YOUR APPETITE</span></h3>
           <div class="keyboard" aria-hidden="true"><kbd>↑</kbd><div><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div></div>
@@ -251,13 +251,13 @@ onBeforeUnmount(() => {
           <div><span>当前关卡</span><strong id="pacman-level">{{ String(game.level).padStart(2, '0') }}<small> / ∞</small></strong></div>
         </div>
         <div class="board-shell">
-          <div class="board-heading"><span><i class="live-dot"></i> 快乐追逐中 <small>THE LITTLE MAZE</small></span><span class="classic-tag">CLASSIC</span></div>
+          <div class="board-heading"><span><i class="live-dot"></i> {{ game.maze.name }} <small>THE LITTLE MAZE</small></span><span class="classic-tag" :aria-label="`本轮迷宫 ${game.mazeIndex + 1} / ${MAZES.length}`">{{ String(game.mazeIndex + 1).padStart(2, '0') }} / {{ String(MAZES.length).padStart(2, '0') }}</span></div>
           <div class="maze-frame">
             <div class="maze-hud"><span class="lives" :aria-label="`剩余 ${game.lives} 条生命`" :data-lives="game.lives"><i v-for="life in 3" :key="life" class="tiny-pacman" :class="{ lost: life > game.lives }"></i><span>LIVES</span></span><span>剩余豆豆 <b id="pacman-remaining">{{ game.remaining }}</b></span></div>
             <div ref="board" class="pacman-board" tabindex="0" role="group" aria-label="吃豆人迷宫" aria-describedby="pacman-help"
               :data-state="game.status" :data-player="game.player" :data-direction="game.direction" :data-power="game.powerTicks" :data-ticks="game.ticks"
               @pointerdown="pointerDown" @pointerup="pointerUp" @pointercancel="pointer = null" @lostpointercapture="pointer = null">
-              <canvas ref="canvas" :width="game.width * CELL" :height="game.height * CELL" role="img" :aria-label="`迷宫：吃豆人在第 ${Math.floor(game.player / game.width) + 1} 行、第 ${game.player % game.width + 1} 列，剩余 ${game.remaining} 颗豆豆。`">使用方向键或 WASD 移动，吃光豆豆并躲避幽灵。</canvas>
+              <canvas ref="canvas" :width="game.width * CELL" :height="game.height * CELL" role="img" :aria-label="`第 ${game.level} 关，${game.maze.name}迷宫：吃豆人在第 ${Math.floor(game.player / game.width) + 1} 行、第 ${game.player % game.width + 1} 列，剩余 ${game.remaining} 颗豆豆。`">使用方向键或 WASD 移动，吃光豆豆并躲避幽灵。</canvas>
               <div v-if="game.status !== 'playing'" class="board-overlay" @pointerdown.stop @pointerup.stop>
                 <div class="overlay-card" role="region" aria-labelledby="pacman-overlay-title">
                   <span class="overlay-mascot" aria-hidden="true"><i class="little-pacman"></i><i class="sketch-dot"></i><i class="sketch-dot"></i></span>
@@ -286,7 +286,7 @@ onBeforeUnmount(() => {
           <div class="menu-bonus"><SvgIcon name="i-spark" /><span>吃光全部豆豆</span><strong>额外 +500</strong></div>
         </section>
         <section class="power-card" :class="{ active: game.powerTicks > 0 }"><div><span class="power-symbol"></span><h2>{{ game.powerTicks > 0 ? '你的高光时刻！' : '小小能量，大大勇气' }}</h2></div><p>{{ game.powerTicks > 0 ? `还有 ${powerSeconds} 秒，去追蓝色幽灵吧！` : '吃下大颗能量豆，幽灵就会变蓝。趁它们恢复之前，勇敢反击吧。' }}</p><div class="power-meter" role="progressbar" aria-label="能量剩余" :aria-valuenow="game.powerTicks" :aria-valuemin="0" :aria-valuemax="POWER_TICKS"><span :style="{ width: `${game.powerTicks / POWER_TICKS * 100}%` }"></span></div></section>
-        <section class="rules-card" aria-labelledby="pacman-rules-title"><div class="section-heading"><h2 id="pacman-rules-title">迷宫漫游指南</h2><span>HOW TO PLAY</span></div><ol><li><span>01</span><div><h3>一路吃豆，一路向前</h3><p>吃光迷宫里的豆豆即可过关。提前按方向，到路口自动转弯。</p></div></li><li><span>02</span><div><h3>小心这几位“老朋友”</h3><p>碰到普通幽灵会失去一条生命。你有三次机会，别着急。</p><div class="ghost-friends" aria-hidden="true"><i class="little-ghost pink"></i><i class="little-ghost mint"></i><i class="little-ghost lilac"></i><span>有点调皮，没有恶意。</span></div></div></li><li><span>03</span><div><h3>停下来，也没关系</h3><p>空格键随时暂停，离开页面自动暂停。回来接着快乐就好。</p></div></li></ol></section>
+        <section class="rules-card" aria-labelledby="pacman-rules-title"><div class="section-heading"><h2 id="pacman-rules-title">迷宫漫游指南</h2><span>HOW TO PLAY</span></div><ol><li><span>01</span><div><h3>一路吃豆，一路向前</h3><p>吃光豆豆，进入下一张迷宫。{{ MAZES.length }} 张地图循环挑战，节奏逐步加快。提前按方向，到路口自动转弯。</p></div></li><li><span>02</span><div><h3>小心这几位“老朋友”</h3><p>碰到普通幽灵会失去一条生命。你有三次机会，别着急。</p><div class="ghost-friends" aria-hidden="true"><i class="little-ghost pink"></i><i class="little-ghost mint"></i><i class="little-ghost lilac"></i><span>有点调皮，没有恶意。</span></div></div></li><li><span>03</span><div><h3>停下来，也没关系</h3><p>空格键随时暂停，离开页面自动暂停。回来接着快乐就好。</p></div></li></ol></section>
       </aside>
     </div>
     <footer><span><i></i> 不赶时间，只追一点小快乐。</span><span>ONE DOT AT A TIME. <b>↗</b></span></footer>

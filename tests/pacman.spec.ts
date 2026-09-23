@@ -1,9 +1,145 @@
 import { test, expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
-import { PacmanGame } from '../src/games/pacman/engine';
+import type { JSHandle, Page } from '@playwright/test';
+import { MAZES, PacmanGame } from '../src/games/pacman/engine';
 import type { Direction } from '../src/games/pacman/engine';
 
 const keys: Record<Direction, string> = { up: 'ArrowUp', left: 'ArrowLeft', down: 'ArrowDown', right: 'ArrowRight' };
+
+type GameHandle = JSHandle<PacmanGame>;
+
+// Test-only access to Vue's reactive engine; no product hooks or direct calls to tick/start.
+async function liveGame(page: Page): Promise<GameHandle> {
+  return page.locator('.pacman-board').evaluateHandle(board => {
+    const component = (board as HTMLElement & {
+      __vueParentComponent?: { setupState: { game: PacmanGame } };
+    }).__vueParentComponent;
+    if (!component?.setupState.game) throw new Error('Pacman Vue engine is unavailable');
+    return component.setupState.game;
+  });
+}
+
+function mapSteps(map: readonly string[], from: number): { direction: Direction; cell: number }[] {
+  const vectors: [Direction, number, number][] = [['up', 0, -1], ['left', -1, 0], ['down', 0, 1], ['right', 1, 0]];
+  const width = map[0].length;
+  return vectors.flatMap(([direction, dx, dy]) => {
+    let x = from % width + dx;
+    const y = Math.floor(from / width) + dy;
+    if (y < 0 || y >= map.length) return [];
+    if (x < 0 || x >= width) {
+      if (y !== 9) return [];
+      x = (x + width) % width;
+    }
+    return map[y][x] === '#' ? [] : [{ direction, cell: y * width + x }];
+  });
+}
+
+async function expectNoOverflow(page: Page): Promise<void> {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const bounds = (await page.locator('.pacman-board').boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  expect(await page.locator('.board-heading').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+}
+
+async function expectMazeWalls(page: Page, index: number): Promise<void> {
+  // Cell centers avoid antialiasing when sampling the renderer's #344e3b wall fill.
+  await page.clock.runFor(16);
+  const walls = await page.locator('.pacman-board canvas').evaluate((node: HTMLCanvasElement) => {
+    const ctx = node.getContext('2d')!;
+    return Array.from({ length: 19 * 21 }, (_, cell) => {
+      const x = Math.floor((cell % 19 + .5) * node.width / 19);
+      const y = Math.floor((Math.floor(cell / 19) + .5) * node.height / 21);
+      const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data;
+      return r === 52 && g === 78 && b === 59 && a === 255;
+    });
+  });
+  expect(walls, `canvas must draw the walls of maze ${index + 1}`).toEqual([...MAZES[index].map.join('')].map(tile => tile === '#'));
+}
+
+async function expectFreshMaze(page: Page, engine: GameHandle, level: number): Promise<void> {
+  const index = (level - 1) % MAZES.length;
+  const maze = MAZES[index];
+  const tiles = [...maze.map.join('')];
+  const cells = (symbol: string) => tiles.flatMap((tile, cell) => tile === symbol ? [cell] : []);
+  await expect(page.locator('.board-heading')).toContainText(maze.name);
+  await expect(page.locator('.classic-tag')).toContainText(`${String(index + 1).padStart(2, '0')} / 08`);
+  await expect(page.locator('#pacman-level')).toHaveText(new RegExp(`^${String(level).padStart(2, '0')}\\s*/\\s*∞$`));
+  expect(await page.locator('.pacman-board canvas').getAttribute('aria-label')).toContain(maze.name);
+  expect(await engine.evaluate(game => ({
+    level: game.level, index: game.mazeIndex, name: game.maze.name,
+    tiles: [...game.tiles], walls: [...game.walls], spawn: game.spawn, player: game.player,
+    pellets: [...game.pellets], powerPellets: [...game.powerPellets],
+    total: game.totalPellets, remaining: game.remaining, interval: game.interval,
+    ticks: game.ticks, powerTicks: game.powerTicks, combo: game.combo, protection: game.invulnerableTicks,
+    direction: game.direction, queuedDirection: game.queuedDirection,
+    ghosts: game.ghosts.map(ghost => ({ ...ghost })),
+  }))).toEqual({
+    level, index, name: maze.name, tiles, walls: cells('#'), spawn: tiles.indexOf('P'), player: tiles.indexOf('P'),
+    pellets: cells('.'), powerPellets: cells('o'), total: cells('.').length + 4, remaining: cells('.').length + 4,
+    interval: Math.max(105, 150 - (level - 1) * 10), ticks: 0, powerTicks: 0, combo: 0, protection: 14,
+    direction: 'left', queuedDirection: 'left',
+    ghosts: tiles.flatMap((tile, home) => /[123]/.test(tile) ? [{ cell: home, home, direction: 'up', cooldown: Number(tile) * 5 }] : []),
+  });
+  await expect(page.locator('#pacman-remaining')).toHaveText(String(cells('.').length + 4));
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-player', String(tiles.indexOf('P')));
+  await expectMazeWalls(page, index);
+  await expectNoOverflow(page);
+}
+
+async function movePauseResume(page: Page, engine: GameHandle, index: number): Promise<void> {
+  const board = page.locator('.pacman-board');
+  const before = await engine.evaluate(game => {
+    game.ghosts = [];
+    return { player: game.player, score: game.score, remaining: game.remaining, pellets: [...game.pellets], power: [...game.powerPellets] };
+  });
+  const step = mapSteps(MAZES[index].map, before.player)[0];
+  expect(step).toBeDefined();
+  const points = before.pellets.includes(step.cell) ? 10 : before.power.includes(step.cell) ? 50 : 0;
+  await board.focus();
+  await page.keyboard.press(keys[step.direction]);
+  await advanceOneTick(page);
+  await expect(board).toHaveAttribute('data-player', String(step.cell));
+  await expect(board).toHaveAttribute('data-direction', step.direction);
+  await expect(page.locator('#pacman-score')).toHaveText(String(before.score + points).padStart(4, '0'));
+  await expect(page.locator('#pacman-remaining')).toHaveText(String(before.remaining - (points ? 1 : 0)));
+  await page.keyboard.press('Space');
+  await expect(board).toHaveAttribute('data-state', 'paused');
+  const frozen = await engine.evaluate(game => ({ player: game.player, ticks: game.ticks, score: game.score, remaining: game.remaining, power: game.powerTicks }));
+  await page.clock.runFor(5000);
+  await page.keyboard.press(keys[step.direction]);
+  expect(await engine.evaluate(game => ({ player: game.player, ticks: game.ticks, score: game.score, remaining: game.remaining, power: game.powerTicks }))).toEqual(frozen);
+  await page.locator('#pacman-overlay-action').click();
+  await expect(board).toHaveAttribute('data-state', 'playing');
+}
+
+async function finishMaze(page: Page, engine: GameHandle): Promise<number> {
+  const before = await engine.evaluate(game => ({ player: game.player, score: game.score, index: game.mazeIndex, lives: game.lives }));
+  const step = mapSteps(MAZES[before.index].map, before.player)[0];
+  // Only shorten the remaining collection; a real key and the production clock must win.
+  await engine.evaluate((game, target) => {
+    game.ghosts = [];
+    game.pellets = new Set([target]);
+    game.powerPellets = new Set();
+    game.totalPellets = 1;
+  }, step.cell);
+  await page.locator('.pacman-board').focus();
+  await page.keyboard.press(keys[step.direction]);
+  await advanceOneTick(page);
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'won');
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-player', String(step.cell));
+  await expect(page.locator('#pacman-remaining')).toHaveText('0');
+  await expect(page.locator('.lives')).toHaveAttribute('data-lives', String(before.lives));
+  const score = before.score + 510;
+  await expect(page.locator('#pacman-score')).toHaveText(String(score).padStart(4, '0'));
+  await expect(page.locator('#pacman-best')).toHaveText(String(score).padStart(4, '0'));
+  await expect(page.locator('.overlay-card p')).toContainText(MAZES[(before.index + 1) % 8].name);
+  await expect(page.locator('.overlay-card p')).toContainText('+500');
+  if (before.index === 7) await expect(page.locator('.overlay-card p')).toContainText('新一轮');
+  await page.clock.runFor(1000);
+  await expect(page.locator('#pacman-score')).toHaveText(String(score).padStart(4, '0'));
+  await expectNoOverflow(page);
+  return score;
+}
 
 async function advanceOneTick(page: Page): Promise<void> {
   const board = page.locator('.pacman-board');
@@ -35,6 +171,118 @@ test.beforeEach(async ({ page }) => {
   await page.clock.pauseAt(new Date(time.getTime() + 1000));
   await page.goto('/#/games/pacman');
   await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'ready');
+});
+
+test('八张地图逐关操作、暂停、重绘并循环到第九关，桌面与窄屏无溢出', async ({ page, isMobile }) => {
+  test.setTimeout(60000);
+  if (isMobile) await page.setViewportSize({ width: 320, height: 740 });
+  expect(MAZES).toHaveLength(8);
+  const engine = await liveGame(page);
+  let score = 0;
+  for (let level = 1; level <= 8; level++) {
+    await expectFreshMaze(page, engine, level);
+    await expect(page.locator('#pacman-score')).toHaveText(String(score).padStart(4, '0'));
+    await expect(page.locator('.lives')).toHaveAttribute('data-lives', '3');
+    await movePauseResume(page, engine, level - 1);
+    score = await finishMaze(page, engine);
+    await page.locator('#pacman-overlay-action').click();
+    await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'playing');
+  }
+  await expectFreshMaze(page, engine, 9);
+  await expect(page.locator('#pacman-score')).toHaveText(String(score).padStart(4, '0'));
+  await expect(page.locator('#pacman-best')).toHaveText(String(score).padStart(4, '0'));
+  await expect(page.locator('.lives')).toHaveAttribute('data-lives', '3');
+  await movePauseResume(page, engine, 0);
+  await engine.dispose();
+});
+
+test('非首张地图重开还原第一关墙体和出生点，最高分跨重开与刷新保留', async ({ page, isMobile }) => {
+  if (isMobile) await page.setViewportSize({ width: 320, height: 740 });
+  const engine = await liveGame(page);
+  for (let level = 1; level <= 2; level++) {
+    await expectFreshMaze(page, engine, level);
+    await movePauseResume(page, engine, level - 1);
+    await finishMaze(page, engine);
+    await page.locator('#pacman-overlay-action').click();
+  }
+  await expectFreshMaze(page, engine, 3);
+  await movePauseResume(page, engine, 2);
+  const best = (await page.locator('#pacman-best').textContent())!;
+  expect(Number(best)).toBeGreaterThan(1000);
+  await page.keyboard.press('KeyR');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'paused');
+  await page.getByRole('button', { name: '确定重开', exact: true }).click();
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'ready');
+  await expectFreshMaze(page, engine, 1);
+  await expect(page.locator('#pacman-score')).toHaveText('0000');
+  await expect(page.locator('.lives')).toHaveAttribute('data-lives', '3');
+  await expect(page.locator('#pacman-best')).toHaveText(best);
+  await engine.dispose();
+  await page.reload();
+  const reloaded = await liveGame(page);
+  await expectFreshMaze(page, reloaded, 1);
+  await expect(page.locator('#pacman-best')).toHaveText(best);
+  await expect(page.locator('#pacman-score')).toHaveText('0000');
+  await reloaded.dispose();
+});
+
+test('非首张地图掉命后在当前出生点复活，不补回已吃豆子或切回首图', async ({ page }) => {
+  const engine = await liveGame(page);
+  const index = 2;
+  const tiles = [...MAZES[index].map.join('')];
+  const pellets = tiles.flatMap((tile, cell) => tile === '.' ? [cell] : []);
+  const target = pellets[1];
+  const from = mapSteps(MAZES[index].map, target)[0].cell;
+  const step = mapSteps(MAZES[index].map, from).find(step => step.cell === target)!;
+  const fixture = await engine.evaluate((game, { index, from, target, eaten, direction }) => {
+    for (let i = 0; i < index; i++) {
+      game.status = 'won';
+      game.nextLevel();
+    }
+    const ghosts = game.ghosts.map(ghost => ({ ...ghost }));
+    game.pellets.delete(eaten);
+    game.powerPellets.delete([...game.powerPellets][0]);
+    game.score = 120;
+    game.player = from;
+    game.direction = direction;
+    game.queuedDirection = direction;
+    game.invulnerableTicks = 0;
+    game.ticks = 10;
+    game.ghosts = [{ cell: target, home: ghosts[0].home, direction: 'left', cooldown: 0 }];
+    game.status = 'paused';
+    return { spawn: game.spawn, total: game.totalPellets, pellets: [...game.pellets].filter(cell => cell !== target), power: [...game.powerPellets], ghosts };
+  }, { index, from, target, eaten: pellets[0], direction: step.direction });
+  await page.locator('#pacman-overlay-action').click();
+  await page.keyboard.press(keys[step.direction]);
+  await advanceOneTick(page);
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'life-lost');
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-player', String(fixture.spawn));
+  await expect(page.locator('.lives')).toHaveAttribute('data-lives', '2');
+  await expect(page.locator('#pacman-score')).toHaveText('0130');
+  await expect(page.locator('#pacman-remaining')).toHaveText(String(fixture.total - 3));
+  await expect(page.locator('.board-heading')).toContainText(MAZES[index].name);
+  await expect(page.locator('.classic-tag')).toContainText('03 / 08');
+  await expect(page.locator('#pacman-level')).toHaveText(/^03\s*\/\s*∞$/);
+  expect(await page.locator('.pacman-board canvas').getAttribute('aria-label')).toContain(MAZES[index].name);
+  const state = await engine.evaluate(game => ({
+    index: game.mazeIndex, tiles: [...game.tiles], pellets: [...game.pellets], power: [...game.powerPellets],
+    total: game.totalPellets, player: game.player, protection: game.invulnerableTicks,
+    ticks: game.ticks, powerTicks: game.powerTicks, combo: game.combo, ghosts: game.ghosts.map(ghost => ({ ...ghost })),
+  }));
+  expect(state).toEqual({
+    index, tiles, pellets: fixture.pellets, power: fixture.power, total: fixture.total,
+    player: fixture.spawn, protection: 14, ticks: 0, powerTicks: 0, combo: 0, ghosts: fixture.ghosts,
+  });
+  await expectMazeWalls(page, index);
+  await page.clock.runFor(5000);
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-player', String(fixture.spawn));
+  await expect(page.locator('#pacman-remaining')).toHaveText(String(fixture.total - 3));
+  await page.locator('#pacman-overlay-action').click();
+  await expect(page.locator('.pacman-board')).toHaveAttribute('data-state', 'playing');
+  expect(await engine.evaluate(game => [...game.pellets])).toEqual(fixture.pellets);
+  await movePauseResume(page, engine, index);
+  await engine.dispose();
 });
 
 test('开始、吃豆、暂停与重开，最高分刷新保留', async ({ page }) => {

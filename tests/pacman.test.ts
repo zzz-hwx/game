@@ -1,10 +1,60 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MAZE, PacmanGame, POWER_TICKS, TICK_MS } from '../src/games/pacman/engine.ts'
+import { MAZES, PacmanGame, POWER_TICKS, TICK_MS } from '../src/games/pacman/engine.ts'
 import type { Direction, GameStatus, Ghost } from '../src/games/pacman/engine.ts'
 
+const firstMap = MAZES[0].map
+const vectors: [Direction, number, number][] = [['up', 0, -1], ['left', -1, 0], ['down', 0, 1], ['right', 1, 0]]
+
 function cell(x: number, y: number) {
-  return y * MAZE[0].length + x
+  return y * firstMap[0].length + x
+}
+
+function cellsWith(map: readonly string[], symbol: string) {
+  return new Set([...map.join('')].flatMap((tile, index) => tile === symbol ? [index] : []))
+}
+
+// Deliberately independent of engine.neighbor: a broken engine must not validate its own maps.
+function mapSteps(map: readonly string[], from: number): { direction: Direction; cell: number }[] {
+  const width = map[0].length
+  return vectors.flatMap(([direction, dx, dy]) => {
+    let x = from % width + dx
+    const y = Math.floor(from / width) + dy
+    if (y < 0 || y >= map.length) return []
+    if (x < 0 || x >= width) {
+      if (y !== 9) return []
+      x = (x + width) % width
+    }
+    return map[y][x] === '#' ? [] : [{ direction, cell: y * width + x }]
+  })
+}
+
+function gameAtMaze(index: number) {
+  const game = new PacmanGame()
+  for (let i = 0; i < index; i++) {
+    game.status = 'won'
+    game.nextLevel()
+  }
+  return game
+}
+
+function assertLoadedMaze(game: PacmanGame, index: number) {
+  const maze = MAZES[index]
+  const tiles = [...maze.map.join('')]
+  assert.equal(game.mazeIndex, index)
+  assert.equal(game.maze, maze)
+  assert.equal(game.width, 19)
+  assert.equal(game.height, 21)
+  assert.deepEqual(game.tiles, tiles)
+  assert.deepEqual(game.walls, cellsWith(maze.map, '#'))
+  assert.deepEqual(game.pellets, cellsWith(maze.map, '.'))
+  assert.deepEqual(game.powerPellets, cellsWith(maze.map, 'o'))
+  assert.equal(game.spawn, tiles.indexOf('P'))
+  assert.equal(game.player, game.spawn)
+  assert.equal(game.totalPellets, game.pellets.size + game.powerPellets.size)
+  assert.equal(game.remaining, game.totalPellets)
+  assert.deepEqual(game.ghosts, tiles.flatMap((tile, home) => /[123]/.test(tile)
+    ? [{ cell: home, home, direction: 'up', cooldown: Number(tile) * 5 }] : []))
 }
 
 function placePlayer(game: PacmanGame, x: number, y: number, direction: Direction) {
@@ -29,57 +79,134 @@ function runningGame() {
   return game
 }
 
-test('pacman: maze rows have equal width and walls match the map', () => {
-  const game = new PacmanGame()
-  assert.equal(game.width, 19)
-  assert.equal(game.height, 21)
-  for (const row of MAZE) {
-    assert.equal(row.length, game.width)
-    assert.match(row, /^[#.o P123]+$/)
-  }
-  assert.equal(game.tiles.length, game.width * game.height)
-  assert.equal(game.tiles.filter(tile => tile === 'P').length, 1)
-  assert.equal(game.spawn, cell(9, 13))
-  game.tiles.forEach((tile, index) => {
-    assert.equal(game.walls.has(index), tile === '#')
-  })
+test('pacman: eight named, distinct wall layouts retain the original first maze', () => {
+  assert.equal(MAZES.length, 8)
+  assert.ok(MAZES.every(maze => maze.name.trim().length > 0))
+  assert.equal(new Set(MAZES.map(maze => maze.name)).size, 8)
+  assert.equal(new Set(MAZES.map(maze => maze.map.join('').replace(/[^#]/g, ' '))).size, 8)
+  assert.deepEqual(firstMap, [
+    '###################',
+    '#o.......#.......o#',
+    '#.##.###.#.###.##.#',
+    '#.................#',
+    '#.##.#.#####.#.##.#',
+    '#....#...#...#....#',
+    '####.###.#.###.####',
+    '#....#.......#....#',
+    '#.##.#.## ##.#.##.#',
+    '.......#123#.......',
+    '#.##.#.#   #.#.##.#',
+    '#....#.......#....#',
+    '#.##.###.#.###.##.#',
+    '#..#.....P.....#..#',
+    '##.#.#.#####.#.#.##',
+    '#....#...#...#....#',
+    '#.######.#.######.#',
+    '#.................#',
+    '#.##.###.#.###.##.#',
+    '#o.......#.......o#',
+    '###################',
+  ])
+  assert.equal(new PacmanGame().spawn, cell(9, 13))
 })
 
-test('pacman: every pellet and legal ghost home is reachable from the player spawn', () => {
-  const game = new PacmanGame()
-  const reachable = new Set([game.spawn])
-  const queue = [game.spawn]
-  // Traverse the map independently of engine.neighbor to check the maze itself.
-  for (let i = 0; i < queue.length; i++) {
-    const x = queue[i] % game.width
-    const y = Math.floor(queue[i] / game.width)
-    for (const [dx, dy] of [[0, -1], [-1, 0], [0, 1], [1, 0]]) {
-      let nx = x + dx
-      const ny = y + dy
-      if (ny < 0 || ny >= game.height) continue
-      if (nx < 0 || nx >= game.width) {
-        if (ny !== 9) continue
-        nx = (nx + game.width) % game.width
-      }
-      const next = cell(nx, ny)
-      if (MAZE[ny][nx] === '#' || reachable.has(next)) continue
-      reachable.add(next)
-      queue.push(next)
+for (const [mazeIndex, maze] of MAZES.entries()) {
+  test(`pacman: maze ${mazeIndex + 1} has valid dimensions, actors, boundaries and walls`, () => {
+    const game = gameAtMaze(mazeIndex)
+    assert.equal(maze.map.length, 21)
+    for (const [y, row] of maze.map.entries()) {
+      assert.equal(row.length, 19)
+      assert.match(row, /^[#.o P123]+$/)
+      if (y === 0 || y === 20) assert.equal(row, '#'.repeat(19))
+      assert.equal(row[0] === '#', y !== 9, `left boundary at row ${y}`)
+      assert.equal(row[18] === '#', y !== 9, `right boundary at row ${y}`)
     }
-  }
-  for (const pellet of [...game.pellets, ...game.powerPellets]) {
-    assert.ok(reachable.has(pellet), `unreachable pellet at ${pellet % game.width},${Math.floor(pellet / game.width)}`)
-  }
-  assert.equal(game.ghosts.length, 3)
-  assert.equal(new Set(game.ghosts.map(ghost => ghost.home)).size, 3)
-  game.ghosts.forEach((ghost, index) => {
-    assert.equal(game.tiles[ghost.home], String(index + 1))
-    assert.equal(ghost.cell, ghost.home)
-    assert.notEqual(ghost.cell, game.spawn)
-    assert.ok(!game.walls.has(ghost.cell))
-    assert.ok(reachable.has(ghost.home), `unreachable ghost home ${ghost.home}`)
+    for (const symbol of ['P', '1', '2', '3']) assert.equal(cellsWith(maze.map, symbol).size, 1, symbol)
+    assert.equal(cellsWith(maze.map, 'o').size, 4)
+    assert.ok(cellsWith(maze.map, '.').size > 0)
+    assert.equal(maze.map[8].slice(8, 11), '# #')
+    assert.equal(maze.map[9].slice(7, 12), '#123#')
+    assert.equal(maze.map[10].slice(7, 12), '#   #')
+    assertLoadedMaze(game, mazeIndex)
+    assert.equal(game.tiles.length, game.width * game.height)
+    game.tiles.forEach((tile, index) => assert.equal(game.walls.has(index), tile === '#'))
+    assert.equal(game.neighbor(cell(0, 9), 'left'), cell(18, 9))
+    assert.equal(game.neighbor(cell(18, 9), 'right'), cell(0, 9))
   })
-})
+
+  test(`pacman: every walkable tile, pellet and ghost home in maze ${mazeIndex + 1} is reachable`, () => {
+    const game = gameAtMaze(mazeIndex)
+    const reachable = new Set([game.spawn])
+    const queue = [game.spawn]
+    for (let i = 0; i < queue.length; i++) {
+      for (const { cell: next } of mapSteps(maze.map, queue[i])) {
+        if (reachable.has(next)) continue
+        reachable.add(next)
+        queue.push(next)
+      }
+    }
+    for (const [index, tile] of [...maze.map.join('')].entries()) {
+      if (tile !== '#') assert.ok(reachable.has(index), `unreachable tile at ${index % 19},${Math.floor(index / 19)}`)
+    }
+    for (const pellet of [...game.pellets, ...game.powerPellets]) assert.ok(reachable.has(pellet), `unreachable pellet ${pellet}`)
+    assert.equal(game.ghosts.length, 3)
+    assert.equal(new Set(game.ghosts.map(ghost => ghost.home)).size, 3)
+    game.ghosts.forEach((ghost, index) => {
+      assert.equal(game.tiles[ghost.home], String(index + 1))
+      assert.equal(ghost.cell, ghost.home)
+      assert.notEqual(ghost.cell, game.spawn)
+      assert.ok(!game.walls.has(ghost.cell))
+      assert.ok(reachable.has(ghost.home), `unreachable ghost home ${ghost.home}`)
+    })
+  })
+
+  test(`pacman: maze ${mazeIndex + 1} can be cleared by real movement with one completion bonus`, () => {
+    const game = gameAtMaze(mazeIndex)
+    const expectedScore = game.pellets.size * 10 + game.powerPellets.size * 50 + 500
+    game.ghosts = []
+    game.start()
+    let moves = 0
+    while (game.remaining > 0) {
+      const queue = [{ cell: game.player, route: [] as { direction: Direction; cell: number }[] }]
+      const seen = new Set([game.player])
+      let route: typeof queue[number]['route'] | undefined
+      for (const current of queue) {
+        if (game.pellets.has(current.cell) || game.powerPellets.has(current.cell)) {
+          route = current.route
+          break
+        }
+        for (const step of mapSteps(maze.map, current.cell)) {
+          if (seen.has(step.cell)) continue
+          seen.add(step.cell)
+          queue.push({ cell: step.cell, route: [...current.route, step] })
+        }
+      }
+      assert.ok(route?.length, `no route to remaining pellets in maze ${mazeIndex + 1}`)
+      for (const step of route) {
+        const award = game.pellets.has(step.cell) ? 10 : game.powerPellets.has(step.cell) ? 50 : 0
+        const beforeScore = game.score
+        const beforeRemaining = game.remaining
+        game.steer(step.direction)
+        game.tick()
+        assert.equal(game.player, step.cell)
+        assert.equal(game.remaining, beforeRemaining - (award ? 1 : 0))
+        assert.equal(game.score, beforeScore + award + (game.remaining === 0 ? 500 : 0))
+        assert.equal(game.status, game.remaining === 0 ? 'won' : 'playing')
+        assert.ok(++moves < game.tiles.length ** 2, 'replay must make bounded progress')
+      }
+    }
+    assert.equal(game.status, 'won')
+    assert.equal(game.score, expectedScore)
+    assert.equal(game.lives, 3)
+    assert.equal(game.pellets.size, 0)
+    assert.equal(game.powerPellets.size, 0)
+    const won = structuredClone(game)
+    game.tick()
+    game.tick()
+    game.start()
+    assert.deepEqual(structuredClone(game), won)
+  })
+}
 
 test('pacman: initial state includes all pellets, three lives and protected actors', () => {
   const game = new PacmanGame()
@@ -517,9 +644,10 @@ for (const powered of [false, true]) {
   })
 }
 
-test('pacman: the next level preserves score and lives, refills the maze and increases speed', () => {
+test('pacman: the next level preserves score and lives, loads the next maze and increases speed', () => {
   const game = runningGame()
-  const fresh = new PacmanGame()
+  const previousTiles = [...game.tiles]
+  const previousWalls = new Set(game.walls)
   placePlayer(game, 2, 1, 'right')
   game.score = 100
   game.lives = 2
@@ -536,19 +664,125 @@ test('pacman: the next level preserves score and lives, refills the maze and inc
   assert.equal(game.score, 610)
   assert.equal(game.lives, 2)
   assert.equal(game.interval, previousInterval - 10)
-  assert.deepEqual(game.pellets, fresh.pellets)
-  assert.deepEqual(game.powerPellets, fresh.powerPellets)
-  assert.equal(game.remaining, fresh.totalPellets)
-  assert.equal(game.totalPellets, fresh.totalPellets)
-  assert.equal(game.player, game.spawn)
+  assertLoadedMaze(game, 1)
+  assert.notDeepEqual(game.tiles, previousTiles)
+  assert.notDeepEqual(game.walls, previousWalls)
   assert.equal(game.direction, 'left')
   assert.equal(game.queuedDirection, 'left')
   assert.equal(game.ticks, 0)
   assert.equal(game.powerTicks, 0)
   assert.equal(game.combo, 0)
   assert.equal(game.invulnerableTicks, 14)
-  assert.deepEqual(game.ghosts, fresh.ghosts)
 })
+
+test('pacman: all eight mazes cycle indefinitely without resetting score, lives or speed', () => {
+  const game = new PacmanGame()
+  game.score = 1230
+  game.lives = 2
+  for (let level = 1; level <= 17; level++) {
+    assert.equal(game.level, level)
+    assertLoadedMaze(game, (level - 1) % 8)
+    assert.equal(game.score, 1230)
+    assert.equal(game.lives, 2)
+    assert.equal(game.interval, Math.max(105, 150 - (level - 1) * 10))
+    assert.equal(game.status, level === 1 ? 'ready' : 'playing')
+    assert.equal(game.ticks, 0)
+    assert.equal(game.powerTicks, 0)
+    assert.equal(game.combo, 0)
+    assert.equal(game.direction, 'left')
+    assert.equal(game.queuedDirection, 'left')
+    assert.equal(game.invulnerableTicks, 14)
+    game.pellets.clear()
+    game.powerPellets.clear()
+    game.ghosts = []
+    game.powerTicks = 12
+    game.combo = 3
+    game.ticks = 57
+    game.invulnerableTicks = 0
+    game.direction = 'right'
+    game.queuedDirection = 'up'
+    game.status = 'won'
+    game.nextLevel()
+  }
+})
+
+for (let mazeIndex = 1; mazeIndex < 8; mazeIndex++) {
+  test(`pacman: death in maze ${mazeIndex + 1} preserves its layout and collected pellets`, () => {
+    const game = gameAtMaze(mazeIndex)
+    const map = MAZES[mazeIndex].map
+    const freshGhosts = structuredClone(game.ghosts)
+    const originalTiles = [...game.tiles]
+    const originalWalls = new Set(game.walls)
+    const originalTotal = game.totalPellets
+    const alreadyEaten = [...game.pellets][0]
+    game.pellets.delete(alreadyEaten)
+    game.powerPellets.delete([...game.powerPellets][0])
+    const target = [...game.pellets][0]
+    const from = mapSteps(map, target)[0].cell
+    const step = mapSteps(map, from).find(step => step.cell === target)!
+    const remainingPellets = new Set(game.pellets)
+    remainingPellets.delete(target)
+    const remainingPower = new Set(game.powerPellets)
+    game.score = 120
+    game.combo = 2
+    game.player = from
+    game.direction = step.direction
+    game.queuedDirection = step.direction
+    game.powerTicks = 0
+    game.invulnerableTicks = 0
+    game.ghosts = [
+      { cell: target, home: freshGhosts[0].home, direction: 'left', cooldown: 0 },
+      { cell: target, home: freshGhosts[1].home, direction: 'right', cooldown: 0 },
+    ]
+    game.tick()
+    assert.equal(game.status, 'life-lost')
+    assert.equal(game.level, mazeIndex + 1)
+    assert.equal(game.mazeIndex, mazeIndex)
+    assert.equal(game.maze, MAZES[mazeIndex])
+    assert.deepEqual(game.tiles, originalTiles)
+    assert.deepEqual(game.walls, originalWalls)
+    assert.equal(game.spawn, map.join('').indexOf('P'))
+    assert.equal(game.player, game.spawn)
+    assert.equal(game.lives, 2)
+    assert.equal(game.score, 130)
+    assert.equal(game.interval, Math.max(105, TICK_MS - mazeIndex * 10))
+    assert.deepEqual(game.pellets, remainingPellets)
+    assert.deepEqual(game.powerPellets, remainingPower)
+    assert.equal(game.totalPellets, originalTotal)
+    assert.equal(game.remaining, originalTotal - 3)
+    assert.equal(game.direction, 'left')
+    assert.equal(game.queuedDirection, 'left')
+    assert.equal(game.ticks, 0)
+    assert.equal(game.powerTicks, 0)
+    assert.equal(game.combo, 0)
+    assert.equal(game.invulnerableTicks, 14)
+    assert.deepEqual(game.ghosts, freshGhosts)
+    const lost = structuredClone(game)
+    game.tick()
+    assert.deepEqual(structuredClone(game), lost)
+    game.start()
+    assert.deepEqual(structuredClone(game), { ...lost, status: 'playing' })
+  })
+
+  test(`pacman: restarting from maze ${mazeIndex + 1} restores the original maze and fresh run`, () => {
+    const game = gameAtMaze(mazeIndex)
+    game.score = 4000
+    game.lives = 1
+    game.pellets.clear()
+    game.powerPellets.clear()
+    game.ghosts = []
+    game.powerTicks = 20
+    game.combo = 3
+    game.ticks = 200
+    game.pause()
+    game.restart()
+    assertLoadedMaze(game, 0)
+    assert.equal(game.status, 'ready')
+    assert.equal(game.level, 1)
+    assert.equal(game.interval, TICK_MS)
+    assert.deepEqual(game, new PacmanGame())
+  })
+}
 
 test('pacman: nextLevel is ignored unless won and speed never drops below 105 milliseconds', () => {
   const statuses: GameStatus[] = ['ready', 'playing', 'paused', 'life-lost', 'over']
