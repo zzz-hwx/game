@@ -125,10 +125,10 @@ function solve(map: readonly string[], cap = 100_000): { solution: string; state
   assert.fail('Level has no solution');
 }
 
-test('sokoban: eight distinct enclosed levels have valid metadata and balanced pieces', () => {
-  assert.equal(LEVELS.length, 8);
-  assert.equal(new Set(LEVELS.map((level) => level.name)).size, 8);
-  assert.equal(new Set(LEVELS.map((level) => level.map.join('\n'))).size, 8);
+test('sokoban: sixteen distinct enclosed levels have valid metadata and balanced pieces', () => {
+  assert.equal(LEVELS.length, 16);
+  assert.equal(new Set(LEVELS.map((level) => level.name)).size, LEVELS.length);
+  assert.equal(new Set(LEVELS.map((level) => level.map.join('\n'))).size, LEVELS.length);
   const symbols = new Set<string>();
   for (const [index, level] of LEVELS.entries()) {
     for (const value of [level.name, level.difficulty, level.hint]) assert.ok(value.trim().length > 0);
@@ -376,7 +376,7 @@ test('sokoban: restart resets won and unfinished levels, counters and all undo h
 
 test('sokoban: level switching and reloading reset every dynamic field', () => {
   const game = new SokobanGame();
-  for (const index of [0, 5, 7, 1, 1, 0]) {
+  for (const index of [...LEVELS.keys(), 1, 1, 0]) {
     game.loadLevel(0);
     play(game, firstSolution);
     game.loadLevel(index);

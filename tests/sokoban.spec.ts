@@ -313,18 +313,32 @@ test('推箱子拒绝损坏纪录，存储不可用时仍能游玩', async ({ pa
   expect(errors).toEqual([]);
 });
 
-test('推箱子八关均可真实通关，撤销和最后一关回到起点', async ({ page }) => {
+test('推箱子全部关卡均可真实通关，撤销和最后一关回到起点', async ({ page }) => {
+  test.setTimeout(60_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   const solutions = [
     'UULUR', 'LUUDDRRUU', 'ULURDDRRUUUDDDLLUURURD', 'UUULURRRLLDDRRURD',
     'UUUDDRRUUDDLLURDRRUULDLDR', 'LDDRRUDDDRRURUUULLLRRDDL',
     'URUUUULLLLLDDRDRUUDDRUUDRDLLLDURRRDULLLDLDRUURRRDRDL',
     'UULUDDDRRRRUUUULLLLULLDDDRLUUURRDDDRDRUUDLLUURRDDLUDDL',
+    'UULUUDRRRDRUUDDDDLLLLUULURRRRURDD',
+    'UULURDDDRRUULUUDDRDRRUUUULLLLRRRDDLDLUUDRRUULLDDLLDDRULURDRUU',
+    'ULLUUUURRRDLULLDDRURRRURRDDLULLLLDDDRRRDRRUULD',
+    'ULUUULURDDDDRRRUULLULDDURRRDDLUDDLLLUUURRRDRU',
+    'URRRRUULRDDLLULUUDLDRDRRRUULLLDDDLLUR',
+    'URRRRRUUUULDRDDDLLLLUUUDLRDDLLUUUDDDRRRRRRUUULLDRURDLLDURRDULLLLDDRR',
+    'UULUULURRRLLDDDRRULDLUUDRRRURDDULLDLDDRRULL',
+    'ULLUURUDLDDRRRRUULUDLUDLULDDURRDURRDDDLLLURR',
   ];
+  expect(solutions).toHaveLength(LEVELS.length);
   const codes: Record<string, string> = { U: 'ArrowUp', D: 'ArrowDown', L: 'ArrowLeft', R: 'ArrowRight' };
   for (const [index, solution] of solutions.entries()) {
     await page.locator('.sokoban-board').focus();
     for (const code of solution) await page.keyboard.press(codes[code]);
     await expect(page.locator('.win-overlay')).toBeVisible();
+    await expect(page.locator('#sokoban-win-title')).toHaveText(index === LEVELS.length - 1 ? '小小仓库，全部搞定！' : '每一份快乐，都归位了！');
     await expect(page.locator('.sokoban-board')).toHaveAttribute('data-state', 'won');
     await expect(page.locator('#sokoban-moves')).toHaveText(String(solution.length).padStart(2, '0'));
     await expect(page.locator('#sokoban-best')).toHaveText(String(solution.length));
@@ -337,8 +351,41 @@ test('推箱子八关均可真实通关，撤销和最后一关回到起点', as
     await expect(page.locator('[aria-current="step"]')).toHaveAttribute('data-level', String((index + 1) % LEVELS.length));
   }
   await page.reload();
+  await expect(page.locator('[data-level="0"]')).toHaveAttribute('aria-current', 'step');
+  await expect(page.locator('.level-buttons .completed')).toHaveCount(LEVELS.length);
+  await expect(page.locator('.journey-progress')).toHaveAttribute('aria-valuenow', String(LEVELS.length));
+  expect(errors).toEqual([]);
+});
+
+test('推箱子扩关保留旧八关存档，新关卡纪录独立保存', async ({ page }) => {
+  const legacyBest = [5, 9, 22, 17, 25, 24, 52, 54];
+  await page.evaluate(({ key, best }) => localStorage.setItem(key, JSON.stringify({ version: 1, levelIndex: 7, best })), {
+    key: storageKey, best: legacyBest,
+  });
+  await page.reload();
+  await expect(page.locator('[data-level="7"]')).toHaveAttribute('aria-current', 'step');
+  await expect(page.locator('#sokoban-best')).toHaveText('54');
+  await expect(page.locator('.level-buttons button')).toHaveCount(LEVELS.length);
   await expect(page.locator('.level-buttons .completed')).toHaveCount(8);
-  await expect(page.locator('.journey-progress')).toHaveAttribute('aria-valuenow', '8');
+  await expect(page.locator('.journey-progress')).toHaveAttribute('aria-valuemax', String(LEVELS.length));
+  for (let index = 8; index < LEVELS.length; index++) {
+    await page.locator(`[data-level="${index}"]`).click();
+    await expect(page.locator('.board-heading h2')).toHaveText(LEVELS[index].name);
+    await expect(page.locator('#sokoban-best')).toHaveText('—');
+    await page.getByRole('button', { name: /需要一点小灵感/ }).click();
+    await expect(page.locator('#sokoban-hint')).toHaveText(LEVELS[index].hint);
+  }
+  await page.locator('[data-level="8"]').click();
+  await walk(page, 'UULUUDRRRDRUUDDDDLLLLUULURRRRURDD');
+  await expect(page.locator('.win-overlay')).toBeVisible();
+  await expect(page.locator('#sokoban-win-title')).toHaveText('每一份快乐，都归位了！');
+  await expect(page.locator('.level-buttons .completed')).toHaveCount(9);
+  await page.reload();
+  await expect(page.locator('[data-level="8"]')).toHaveAttribute('aria-current', 'step');
+  await expect(page.locator('#sokoban-best')).toHaveText('33');
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), storageKey)).toEqual({
+    version: 1, levelIndex: 8, best: [...legacyBest, 33, ...LEVELS.slice(9).map(() => null)],
+  });
 });
 
 test('推箱子更新更少步数的纪录，并提示角落卡死而不结束游戏', async ({ page }) => {
@@ -483,7 +530,7 @@ test('推箱子跨页记录只接受正安全整数，损坏或删除不抹掉�
 test('推箱子各屏幕宽度下棋盘、导航和按钮不溢出', async ({ page, isMobile }, testInfo) => {
   for (const width of isMobile ? [320, 393] : [768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
-    for (const levelIndex of [0, 7]) {
+    for (const levelIndex of [0, 7, 8, LEVELS.length - 1]) {
       await page.locator(`[data-level="${levelIndex}"]`).click();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const board = (await page.locator('.sokoban-board').boundingBox())!;
