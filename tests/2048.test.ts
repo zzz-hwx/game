@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game2048, canMove, slide } from '../src/games/2048/engine.ts';
+import { Game2048, canMove, readGameSaves, slide } from '../src/games/2048/engine.ts';
 import type { Direction } from '../src/games/2048/engine.ts';
 
 const directions: Direction[] = ['left', 'right', 'up', 'down'];
@@ -638,4 +638,64 @@ test('restore: ignores injected undo history and derives state from validated bo
   assert.equal(game.undo(), false);
   assert.equal(game.state, 'playing');
   assert.equal(game.maxTile, 4);
+});
+
+test('manual saves: capture independent snapshots and restore undo without random spawns', () => {
+  const { game, random } = withHistory();
+  const before = snapshot(game);
+  const first = game.createSave('first', 1000);
+  const second = game.createSave('second', 2000);
+  assert.notStrictEqual(first.board, game.board);
+  assert.notStrictEqual(first.previous!.board, game.previous!.board);
+  assert.notStrictEqual(first.board, second.board);
+  assert.notStrictEqual(first.previous!.board, second.previous!.board);
+  game.board.fill(16);
+  game.previous!.board.fill(32);
+  game.restoreSave(first);
+  assert.deepEqual(snapshot(game), before);
+  assert.notStrictEqual(game.board, first.board);
+  assert.notStrictEqual(game.previous!.board, first.previous!.board);
+  assert.equal(game.undo(), true);
+  assert.deepEqual(game.board, board([2, 2]));
+  assert.equal(game.score, 0);
+  assert.equal(game.moves, 0);
+  game.restoreSave(first);
+  assert.deepEqual(snapshot(game), before);
+  assert.equal(random.calls, 6);
+});
+
+for (const fixture of roundTrips) {
+  test(`manual saves: ${fixture.name} survives JSON storage with exact progress and undo`, () => {
+    const source = withHistory().game;
+    source.board = [...fixture.board];
+    source.continued = fixture.continued;
+    const save = source.createSave('save', 1234);
+    const collection = readGameSaves(JSON.stringify({ version: 1, saves: [save] }));
+    assert.deepEqual(collection, [save]);
+    const { game, random } = withHistory();
+    game.restoreSave(collection[0]);
+    assert.deepEqual(snapshot(game), snapshot(source));
+    assert.equal(game.state, fixture.state);
+    assert.equal(random.calls, 6);
+    game.board.fill(128);
+    assert.deepEqual(collection[0], save);
+  });
+}
+
+test('manual saves: validate stored collections before allowing them to replace existing data', () => {
+  const save = withHistory().game.createSave('save', 1234);
+  const encode = (saves: unknown[], version: unknown = 1) => JSON.stringify({ version, saves });
+  assert.deepEqual(readGameSaves(null), []);
+  assert.deepEqual(readGameSaves(encode([])), []);
+  for (const raw of ['{', 'null', '[]', '{}', encode([save], 2), encode([save, save])]) {
+    assert.throws(() => readGameSaves(raw));
+  }
+  for (const fields of [
+    { id: '' }, { id: 1 }, { savedAt: -1 }, { savedAt: '1234' }, { savedAt: 8.64e15 + 1 },
+    { board: [2, 2] }, { board: board([2, 3]) }, { score: -1 }, { moves: 0.5 }, { continued: 1 },
+    { previous: undefined }, { previous: { ...save.previous, board: [] } },
+  ]) {
+    assert.throws(() => readGameSaves(encode([{ ...save, ...fields }])));
+  }
+  assert.deepEqual(readGameSaves(encode([{ ...save, previous: null }]))[0].previous, null);
 });

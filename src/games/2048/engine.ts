@@ -14,7 +14,40 @@ interface Snapshot {
   moves: number;
   continued: boolean;
 }
+export interface GameSave extends Snapshot {
+  id: string;
+  savedAt: number;
+  previous: Snapshot | null;
+}
 export const STORAGE_KEY = 'little-break-2048';
+export const SAVES_STORAGE_KEY = 'little-break-2048-saves';
+
+function isSnapshot(value: unknown): value is Snapshot {
+  if (!value || typeof value !== 'object') return false;
+  const saved = value as Partial<Snapshot>;
+  return Array.isArray(saved.board) && saved.board.length === 16
+    && saved.board.every((tile: unknown) => typeof tile === 'number' && Number.isSafeInteger(tile)
+      && (tile === 0 || (tile >= 2 && 2 ** Math.round(Math.log2(tile)) === tile)))
+    && saved.board.filter((tile) => tile > 0).length >= 2
+    && typeof saved.score === 'number' && Number.isSafeInteger(saved.score) && saved.score >= 0
+    && typeof saved.moves === 'number' && Number.isSafeInteger(saved.moves) && saved.moves >= 0
+    && typeof saved.continued === 'boolean';
+}
+
+export function readGameSaves(raw: string | null): GameSave[] {
+  if (!raw) return [];
+  const data = JSON.parse(raw);
+  if (data?.version !== 1 || !Array.isArray(data.saves)) throw new Error('Invalid save collection');
+  const ids = new Set<string>();
+  return data.saves.map((value: unknown) => {
+    const saved = value as GameSave | null;
+    if (!isSnapshot(saved) || typeof saved.id !== 'string' || !saved.id || ids.has(saved.id)
+      || !Number.isSafeInteger(saved.savedAt) || saved.savedAt < 0 || saved.savedAt > 8.64e15
+      || (saved.previous !== null && !isSnapshot(saved.previous))) throw new Error('Invalid game save');
+    ids.add(saved.id);
+    return saved;
+  });
+}
 
 export function canMove(board: number[]): boolean {
   return board.some((value, index) => value === 0
@@ -114,6 +147,21 @@ export class Game2048 {
     if (this.state === 'won') this.continued = true;
   }
 
+  createSave(id: string, savedAt: number): GameSave {
+    return {
+      id, savedAt, board: [...this.board], score: this.score, moves: this.moves, continued: this.continued,
+      previous: this.previous ? { ...this.previous, board: [...this.previous.board] } : null,
+    };
+  }
+
+  restoreSave(saved: GameSave): void {
+    this.board = [...saved.board];
+    this.score = saved.score;
+    this.moves = saved.moves;
+    this.continued = saved.continued;
+    this.previous = saved.previous ? { ...saved.previous, board: [...saved.previous.board] } : null;
+  }
+
   serialize(best: number): string {
     return JSON.stringify({ version: 1, board: this.board, score: this.score, moves: this.moves, continued: this.continued, best });
   }
@@ -124,12 +172,7 @@ export class Game2048 {
       const saved = JSON.parse(raw);
       if (!saved || typeof saved !== 'object' || saved.version !== 1) return 0;
       const best = Number.isSafeInteger(saved.best) && saved.best >= 0 ? saved.best : 0;
-      const validBoard = Array.isArray(saved.board) && saved.board.length === 16
-        && saved.board.every((value: unknown) => typeof value === 'number' && Number.isSafeInteger(value)
-          && (value === 0 || (value >= 2 && 2 ** Math.round(Math.log2(value)) === value)))
-        && saved.board.filter((value: number) => value > 0).length >= 2;
-      if (!validBoard || !Number.isSafeInteger(saved.score) || saved.score < 0
-        || !Number.isSafeInteger(saved.moves) || saved.moves < 0 || typeof saved.continued !== 'boolean') return best;
+      if (!isSnapshot(saved)) return best;
       this.board = [...saved.board];
       this.score = saved.score;
       this.moves = saved.moves;

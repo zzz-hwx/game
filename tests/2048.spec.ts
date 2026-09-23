@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { Game2048, STORAGE_KEY } from '../src/games/2048/engine';
+import { Game2048, SAVES_STORAGE_KEY, STORAGE_KEY } from '../src/games/2048/engine';
 
 const empty = Array<number>(12).fill(0);
 const deadBoard = [2, 4, 2, 4, 4, 2, 4, 2, 2, 4, 2, 4, 4, 2, 4, 2];
@@ -347,4 +347,188 @@ test('2048 各屏幕宽度不溢出，数字、按钮和棋盘完整可见', asy
     await expect(page.locator('.number-board .tile-1024')).toHaveText('1024');
   }
   await page.screenshot({ path: testInfo.outputPath('2048-playing.png'), fullPage: true });
+});
+
+test('2048 手动存档独立保存、刷新后恢复、保留撤销和纪录并支持删除', async ({ page }, testInfo) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.locator('#saves-2048').click();
+  await expect(page.locator('.saves-empty')).toBeVisible();
+  await page.getByRole('button', { name: '关闭存档' }).click();
+  await press(page, 'ArrowLeft');
+  const firstBoard = await readBoard(page);
+  await page.locator('#save-2048').click();
+  await expect(page.locator('.play-area .save-feedback')).toContainText('已保存当前进度');
+  const firstSave = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).saves[0], SAVES_STORAGE_KEY);
+  await press(page, 'ArrowDown');
+  await page.locator('#save-2048').click();
+  await press(page, 'ArrowUp');
+  await press(page, 'ArrowLeft');
+  await expect(page.locator('#best-2048')).toHaveText('8');
+  await page.reload();
+  await expect(page.locator('#saves-2048 .save-count')).toHaveText('2');
+  await page.locator('#restart-2048').click();
+  await page.getByRole('button', { name: '开始新的一局', exact: true }).click();
+  await page.locator('#saves-2048').click();
+  const entries = page.locator('.save-entry');
+  await expect(entries).toHaveCount(2);
+  await expect(entries.last()).toContainText('4 分 · 1 步');
+  await page.screenshot({ path: testInfo.outputPath('2048-saves.png'), fullPage: true });
+  await entries.last().getByRole('button', { name: /^恢复/ }).click();
+  await page.getByRole('button', { name: '确认恢复', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  expect(await readBoard(page)).toEqual(firstBoard);
+  await expect(page.locator('#score-2048')).toHaveText('4');
+  await expect(page.locator('#moves-2048')).toHaveText('1');
+  await expect(page.locator('#best-2048')).toHaveText('8');
+  await expect(page.locator('#undo-2048')).toBeEnabled();
+  await expect(page.locator('.number-board')).toBeFocused();
+  await page.keyboard.press('z');
+  await expect(page.locator('#moves-2048')).toHaveText('0');
+  await page.locator('#saves-2048').click();
+  await entries.last().getByRole('button', { name: /^恢复/ }).click();
+  await page.getByRole('button', { name: '确认恢复', exact: true }).click();
+  await page.reload();
+  await expect(page.locator('#moves-2048')).toHaveText('1');
+  expect(await readBoard(page)).toEqual(firstBoard);
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).saves[1], SAVES_STORAGE_KEY)).toEqual(firstSave);
+  await page.locator('#saves-2048').click();
+  await entries.last().getByRole('button', { name: /^删除/ }).click();
+  await page.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(entries).toHaveCount(1);
+  await page.getByRole('button', { name: '关闭存档' }).click();
+  expect(await readBoard(page)).toEqual(firstBoard);
+  await page.reload();
+  await expect(page.locator('#saves-2048 .save-count')).toHaveText('1');
+  await expect(page.locator('#best-2048')).toHaveText('8');
+  await page.locator('#saves-2048').click();
+  await entries.getByRole('button', { name: /^删除/ }).click();
+  await page.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(page.locator('.saves-empty')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('2048 存档弹窗取消、Escape 和方向键不改变游戏，移动动画中也能保存', async ({ page }) => {
+  await page.locator('.number-board').focus();
+  await page.evaluate(() => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowLeft', bubbles: true }));
+    document.getElementById('save-2048')!.click();
+  });
+  await expect(page.locator('.number-board')).toHaveAttribute('data-animating', 'false');
+  await expect(page.locator('#saves-2048 .save-count')).toHaveText('1');
+  await press(page, 'ArrowDown');
+  const before = await readBoard(page);
+  await page.locator('#saves-2048').click();
+  for (const action of [/^恢复/, /^删除/]) {
+    await page.locator('.save-entry').getByRole('button', { name: action }).click();
+    await expect(page.getByRole('button', { name: '取消', exact: true })).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('z');
+    expect(await readBoard(page)).toEqual(before);
+    await page.getByRole('button', { name: '取消', exact: true }).click();
+    await expect(page.locator('.save-entry')).toHaveCount(1);
+    await page.locator('.save-entry').getByRole('button', { name: action }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.save-entry')).toHaveCount(1);
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(page.locator('.number-board')).toBeFocused();
+  expect(await readBoard(page)).toEqual(before);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#moves-2048')).toHaveText('3');
+});
+
+test('2048 胜利、继续挑战和失败状态均可存档并原样恢复', async ({ page }) => {
+  await seed(page, [1024, 1024, 0, 0, ...empty], 1000, 100);
+  await press(page, 'ArrowLeft');
+  await page.locator('#save-2048').click();
+  await page.getByRole('button', { name: '继续挑战', exact: true }).click();
+  await page.locator('#save-2048').click();
+  await seed(page, [4, 2, 4, 0, ...deadBoard.slice(4)], 120, 10);
+  await press(page, 'ArrowRight');
+  await page.locator('#save-2048').click();
+  await page.getByRole('button', { name: '再玩一局', exact: true }).click();
+  for (const [index, state, score, moves] of [[0, 'over', '120', '11'], [1, 'playing', '3,048', '101'], [2, 'won', '3,048', '101']] as const) {
+    await page.locator('#saves-2048').click();
+    await page.locator('.save-entry').nth(index).getByRole('button', { name: /^恢复/ }).click();
+    await page.getByRole('button', { name: '确认恢复', exact: true }).click();
+    await expect(page.locator('#status-2048')).toHaveAttribute('data-state', state);
+    await expect(page.locator('#score-2048')).toHaveText(score);
+    await expect(page.locator('#moves-2048')).toHaveText(moves);
+    await expect(page.locator('#undo-2048')).toBeEnabled();
+  }
+  await page.getByRole('button', { name: '撤销一步，再想想' }).click();
+  await expect(page.locator('#status-2048')).toHaveAttribute('data-state', 'playing');
+  await expect(page.locator('#moves-2048')).toHaveText('100');
+});
+
+test('2048 存档保存和删除失败不会假报成功或丢失数据，损坏数据不会被覆盖', async ({ page }) => {
+  await page.locator('#save-2048').click();
+  const original = await page.evaluate(key => localStorage.getItem(key), SAVES_STORAGE_KEY);
+  await page.evaluate(key => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (name, value) {
+      if (name === key) throw new DOMException('Storage full', 'QuotaExceededError');
+      return set.call(this, name, value);
+    };
+  }, SAVES_STORAGE_KEY);
+  await press(page, 'ArrowLeft');
+  await page.locator('#save-2048').click();
+  await expect(page.locator('.play-area .save-feedback')).toContainText('操作未成功');
+  await expect(page.locator('#saves-2048 .save-count')).toHaveText('1');
+  await page.locator('#saves-2048').click();
+  await page.locator('.save-entry').getByRole('button', { name: /^删除/ }).click();
+  await page.getByRole('button', { name: '确认删除', exact: true }).click();
+  await expect(page.locator('.saves-dialog .save-feedback')).toContainText('操作未成功');
+  expect(await page.evaluate(key => localStorage.getItem(key), SAVES_STORAGE_KEY)).toBe(original);
+  await page.reload();
+  await expect(page.locator('#saves-2048 .save-count')).toHaveText('1');
+  await page.evaluate(key => localStorage.setItem(key, '{'), SAVES_STORAGE_KEY);
+  await page.reload();
+  await page.locator('#save-2048').click();
+  await expect(page.locator('.play-area .save-feedback')).toContainText('无法读取存档');
+  expect(await page.evaluate(key => localStorage.getItem(key), SAVES_STORAGE_KEY)).toBe('{');
+  await press(page, 'ArrowDown');
+  await expect(page.locator('#moves-2048')).toHaveText('2');
+});
+
+test('2048 多标签页新增删除同步且不覆盖其他存档或当前游戏', async ({ page, context }) => {
+  await page.locator('#save-2048').click();
+  const other = await context.newPage();
+  await other.goto('/#/games/2048');
+  await expect(other.locator('#saves-2048 .save-count')).toHaveText('1');
+  await press(other, 'ArrowLeft');
+  await other.locator('#save-2048').click();
+  await expect(page.locator('#saves-2048 .save-count')).toHaveText('2');
+  await expect(page.locator('#moves-2048')).toHaveText('0');
+  await page.locator('#saves-2048').click();
+  await page.locator('.save-entry').first().getByRole('button', { name: /^恢复/ }).click();
+  await other.locator('#saves-2048').click();
+  await other.locator('.save-entry').first().getByRole('button', { name: /^删除/ }).click();
+  await other.getByRole('button', { name: '确认删除', exact: true }).click();
+  await page.getByRole('button', { name: '确认恢复', exact: true }).click();
+  await expect(page.locator('.saves-dialog .save-feedback')).toContainText('该存档已被删除');
+  await expect(page.locator('.save-entry')).toHaveCount(1);
+  await expect(page.locator('#moves-2048')).toHaveText('0');
+  await page.getByRole('button', { name: '关闭存档' }).click();
+  await page.locator('#save-2048').click();
+  await expect(other.locator('.save-entry')).toHaveCount(2);
+  await expect(other.locator('#moves-2048')).toHaveText('1');
+  await other.close();
+});
+
+test('2048 存档列表在窄屏和多存档时可浏览且不溢出', async ({ page, isMobile }) => {
+  for (let i = 0; i < 6; i++) await page.locator('#save-2048').click();
+  await page.locator('#saves-2048').click();
+  for (const width of isMobile ? [320, 393] : [768, 1440]) {
+    await page.setViewportSize({ width, height: 700 });
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.locator('.save-entry').last().getByRole('button', { name: /^恢复/ }).click();
+    await expect(page.getByRole('button', { name: '确认恢复', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '取消', exact: true }).click();
+  }
 });

@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import SvgIcon from '../../components/SvgIcon.vue';
-import { Game2048, STORAGE_KEY } from './engine';
-import type { Direction, Motion } from './engine';
+import { canMove, Game2048, readGameSaves, SAVES_STORAGE_KEY, STORAGE_KEY } from './engine';
+import type { Direction, GameSave, Motion } from './engine';
 
 const game = reactive(new Game2048());
 const best = ref(0);
 const board = ref<HTMLDivElement | null>(null);
 const restartDialog = ref<HTMLDialogElement | null>(null);
+const savesDialog = ref<HTMLDialogElement | null>(null);
+const closeSavesButton = ref<HTMLButtonElement | null>(null);
+const cancelSaveButton = ref<HTMLButtonElement | null>(null);
+const saves = ref<GameSave[]>([]);
+const savesReadable = ref(true);
+const saveFeedback = ref('');
+const saveError = ref(false);
+const pendingSave = ref<{ id: string; action: 'restore' | 'delete' } | null>(null);
 const resultButton = ref<HTMLButtonElement | null>(null);
 const announcement = ref('');
 const storageAvailable = ref(true);
@@ -61,18 +69,116 @@ function save(): void {
 }
 
 function onStorage(event: StorageEvent): void {
-  if (event.key !== STORAGE_KEY) return;
   try {
-    if (event.storageArea === localStorage) best.value = Math.max(best.value, readBest(event.newValue));
+    if (event.storageArea !== localStorage) return;
+    if (event.key === STORAGE_KEY) best.value = Math.max(best.value, readBest(event.newValue));
+    if (event.key === SAVES_STORAGE_KEY || event.key === null) refreshSaves();
   } catch {
     storageAvailable.value = false;
   }
 }
 
+function reportSave(message: string, error = false): void {
+  saveFeedback.value = message;
+  saveError.value = error;
+}
+
+function refreshSaves(): boolean {
+  try {
+    saves.value = readGameSaves(localStorage.getItem(SAVES_STORAGE_KEY));
+    savesReadable.value = true;
+    return true;
+  } catch {
+    savesReadable.value = false;
+    reportSave('无法读取存档，浏览器存储不可用或数据已损坏。现有数据未被改动。', true);
+    return false;
+  }
+}
+
+function writeSaves(next: GameSave[]): boolean {
+  try {
+    localStorage.setItem(SAVES_STORAGE_KEY, JSON.stringify({ version: 1, saves: next }));
+    saves.value = next;
+    return true;
+  } catch {
+    reportSave('操作未成功，存储空间不足或浏览器不允许保存。请释放空间后重试。', true);
+    return false;
+  }
+}
+
+function saveProgress(): void {
+  if (!refreshSaves()) return;
+  clearAnimation();
+  const saved = game.createSave(crypto.randomUUID(), Date.now());
+  if (!writeSaves([saved, ...saves.value])) return;
+  reportSave(`已保存当前进度：${saved.score.toLocaleString()} 分 · ${saved.moves.toLocaleString()} 步。`);
+  focusBoard();
+}
+
+function openSaves(): void {
+  clearAnimation();
+  pointer = null;
+  pendingSave.value = null;
+  reportSave('');
+  refreshSaves();
+  savesDialog.value?.showModal();
+}
+
+function closeSaves(): void {
+  savesDialog.value?.close();
+  pendingSave.value = null;
+  focusBoard();
+}
+
+function requestSaveAction(id: string, action: 'restore' | 'delete'): void {
+  reportSave('');
+  pendingSave.value = { id, action };
+  void nextTick(() => cancelSaveButton.value?.focus());
+}
+
+function cancelSaveAction(): void {
+  pendingSave.value = null;
+  void nextTick(() => closeSavesButton.value?.focus());
+}
+
+function confirmSaveAction(): void {
+  const pending = pendingSave.value;
+  if (!pending || !refreshSaves()) return;
+  const saved = saves.value.find((entry) => entry.id === pending.id);
+  if (!saved) {
+    reportSave('该存档已被删除，请选择其他存档。', true);
+    cancelSaveAction();
+    return;
+  }
+  if (pending.action === 'delete') {
+    if (!writeSaves(saves.value.filter((entry) => entry.id !== saved.id))) return;
+    reportSave('存档已删除，当前游戏不受影响。');
+    cancelSaveAction();
+  } else {
+    clearAnimation();
+    game.restoreSave(saved);
+    best.value = Math.max(best.value, game.score);
+    save();
+    reportSave(storageAvailable.value ? '已恢复存档，可以从这里继续。' : '已恢复存档，但自动进度未能保存。原存档仍然保留。', !storageAvailable.value);
+    closeSaves();
+    announcement.value = `已恢复存档，得分 ${game.score}，移动 ${game.moves} 步。`;
+  }
+}
+
+function saveStateLabel(saved: GameSave): string {
+  if (!saved.continued && Math.max(...saved.board) >= 2048) return '已达成 2048';
+  if (!canMove(saved.board)) return '本局结束';
+  return saved.continued ? '继续挑战中' : '进行中';
+}
+
+function saveTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString('zh-CN', { hour12: false });
+}
+
 function focusBoard(): void { void nextTick(() => board.value?.focus({ preventScroll: true })); }
 
 function move(direction: Direction): void {
-  if (animating.value || restartDialog.value?.open) return;
+  if (animating.value || restartDialog.value?.open || savesDialog.value?.open) return;
   const result = game.move(direction);
   if (!result.changed) return;
   gained.value = result.gained;
@@ -136,7 +242,7 @@ function keepPlaying(): void {
 }
 
 function onKeyDown(event: KeyboardEvent): void {
-  if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || restartDialog.value?.open) return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.isComposing || restartDialog.value?.open || savesDialog.value?.open) return;
   if (event.target instanceof Element && event.target.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
   const direction = keys[event.code];
   if (direction) {
@@ -180,6 +286,7 @@ onMounted(() => {
   try { best.value = game.restore(localStorage.getItem(STORAGE_KEY)); }
   catch { storageAvailable.value = false; }
   save();
+  refreshSaves();
   document.addEventListener('keydown', onKeyDown);
   window.addEventListener('storage', onStorage);
 });
@@ -242,8 +349,13 @@ onBeforeUnmount(() => {
           <button id="undo-2048" class="secondary-button" :disabled="!game.previous || animating" @click="undo"><SvgIcon name="icon-restart" /> 撤销一步 <kbd>Z</kbd></button>
           <button id="restart-2048" class="primary-button" @click="requestRestart"><SvgIcon name="i-shuffle" /> 新的一局</button>
         </div>
+        <div class="save-actions">
+          <button id="save-2048" class="secondary-button" @click="saveProgress"><SvgIcon name="i-clock" /> 保存进度</button>
+          <button id="saves-2048" class="secondary-button" aria-haspopup="dialog" @click="openSaves"><SvgIcon name="i-grid" /> 我的存档 <span v-if="savesReadable" class="save-count">{{ saves.length }}</span></button>
+        </div>
         <div class="touch-controls" role="group" aria-label="方向控制"><button v-for="control in directions" :key="control.direction" :aria-label="control.label" :disabled="game.state !== 'playing'" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && directionClick(control.direction)">{{ control.symbol }}</button></div>
         <p class="save-note"><i :class="{ unavailable: !storageAvailable }"></i>{{ storageAvailable ? '进度和纪录已自动保存在此设备' : '浏览器存储不可用，本局仍可正常游玩' }}</p>
+        <p v-if="saveFeedback" class="save-feedback" :class="{ 'save-error': saveError }" role="status">{{ saveFeedback }}</p>
       </section>
 
       <aside class="sidebar">
@@ -268,8 +380,41 @@ onBeforeUnmount(() => {
     </div>
     <footer><span><i></i> 纯粹的游戏，简单的快乐。</span><span>SMALL NUMBERS. BIG POSSIBILITIES. <b>＋</b></span></footer>
     <dialog ref="restartDialog" class="restart-dialog" aria-labelledby="restart-title-2048" @cancel.prevent="cancelRestart">
-      <span class="result-eyebrow">A FRESH LITTLE START</span><h2 id="restart-title-2048">换个心情，再来一局？</h2><p>本局进度会清空，最高纪录会好好保留。</p>
+      <span class="result-eyebrow">A FRESH LITTLE START</span><h2 id="restart-title-2048">换个心情，再来一局？</h2><p>本局进度会清空，最高纪录会好好保留。手动存档不受影响。</p>
       <div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelRestart">继续本局</button><button class="primary-button" @click="restart">开始新的一局</button></div>
+    </dialog>
+    <dialog ref="savesDialog" class="restart-dialog saves-dialog" aria-labelledby="saves-title-2048" @cancel.prevent="pendingSave ? cancelSaveAction() : closeSaves()">
+      <div class="section-heading">
+        <div><span class="result-eyebrow">KEEP A LITTLE POSSIBILITY</span><h2 id="saves-title-2048">我的存档</h2></div>
+        <button ref="closeSavesButton" class="secondary-button close-saves" aria-label="关闭存档" autofocus @click="closeSaves"><SvgIcon name="i-close" /></button>
+      </div>
+      <p class="saves-description">手动存档不会被自动进度覆盖。仅保存在当前浏览器，清除网站数据后将丢失。</p>
+      <section v-if="pendingSave" class="save-confirm" aria-labelledby="save-confirm-title">
+        <h3 id="save-confirm-title">{{ pendingSave.action === 'restore' ? '从这个存档继续？' : '删除这个存档？' }}</h3>
+        <p>{{ pendingSave.action === 'restore' ? '当前进度将被替换，建议先保存当前游戏。最高纪录和所有手动存档都会保留。' : '删除后无法恢复，不会影响当前游戏、最高纪录和其他存档。' }}</p>
+        <div class="dialog-actions">
+          <button ref="cancelSaveButton" class="secondary-button" @click="cancelSaveAction">取消</button>
+          <button class="primary-button" :class="{ 'delete-save': pendingSave.action === 'delete' }" @click="confirmSaveAction">{{ pendingSave.action === 'restore' ? '确认恢复' : '确认删除' }}</button>
+        </div>
+      </section>
+      <template v-else-if="savesReadable">
+        <p v-if="!saves.length" class="saves-empty">还没有手动存档。<br>点击棋盘下方的「保存进度」，留住这一刻。</p>
+        <ul v-else class="saves-list" aria-label="手动存档列表">
+          <li v-for="entry in saves" :key="entry.id" class="save-entry">
+            <div class="save-preview" aria-hidden="true"><span v-for="(value, index) in entry.board" :key="index" :class="value ? tileClass(value) : ''">{{ value || '' }}</span></div>
+            <div class="save-details">
+              <time :datetime="new Date(entry.savedAt).toISOString()">{{ saveTime(entry.savedAt) }}</time>
+              <strong>{{ entry.score.toLocaleString() }} 分 <span>· {{ entry.moves.toLocaleString() }} 步</span></strong>
+              <span>{{ saveStateLabel(entry) }} · 最大方块 {{ Math.max(...entry.board) }}</span>
+            </div>
+            <div class="save-entry-actions">
+              <button class="secondary-button" :aria-label="`恢复 ${saveTime(entry.savedAt)} 的存档`" @click="requestSaveAction(entry.id, 'restore')">恢复</button>
+              <button class="secondary-button delete-save" :aria-label="`删除 ${saveTime(entry.savedAt)} 的存档`" @click="requestSaveAction(entry.id, 'delete')">删除</button>
+            </div>
+          </li>
+        </ul>
+      </template>
+      <p v-if="saveFeedback" class="save-feedback" :class="{ 'save-error': saveError }" role="status">{{ saveFeedback }}</p>
     </dialog>
     <div class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
   </main>
