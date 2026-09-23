@@ -2,9 +2,27 @@
 import SvgIcon from '../../components/SvgIcon.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import type { CSSProperties } from 'vue';
-import { createBoard, findMove, findPath, shuffleBoard } from './engine';
+import { applyGravity, createBoard, findMove, findPath, shuffleBoard } from './engine';
 import type { Board, Point } from './engine';
 
+const modes = {
+  classic: {
+    name: '经典限时', title: '经典连连看', tagline: '争分夺秒，挑战连击',
+    description: '180 秒内清空棋盘，连续配对赢取额外加分。',
+    storageKey: 'link-and-chill-records',
+  },
+  zen: {
+    name: '悠闲模式', title: '悠闲连连看', tagline: '不限时间，慢慢发现',
+    description: '没有倒计时，提示和洗牌不限次数。清空棋盘即可通关，不计时间奖励。',
+    storageKey: 'link-and-chill-records-zen',
+  },
+  gravity: {
+    name: '重力模式', title: '重力连连看', tagline: '水果下落，步步新局',
+    description: '180 秒内清空棋盘；每次消除后，上方水果会向下补位，连接路线随之改变。',
+    storageKey: 'link-and-chill-records-gravity',
+  },
+} as const;
+type Mode = keyof typeof modes;
 const levels = {
   easy: { name: '轻松', rows: 4, cols: 6, seconds: 180, types: 6, tools: 5 },
   normal: { name: '标准', rows: 6, cols: 8, seconds: 180, types: 10, tools: 3 },
@@ -22,6 +40,7 @@ const fruits = [
 ] as const;
 interface GameState {
   level: Level;
+  mode: Mode;
   board: Board;
   status: Status;
   selected: Point | null;
@@ -46,7 +65,7 @@ interface Voice {
   gain: GainNode;
 }
 const state = reactive<GameState>({
-  level: 'normal', board: [], status: 'ready', selected: null, score: 0,
+  level: 'normal', mode: 'classic', board: [], status: 'ready', selected: null, score: 0,
   remaining: 180000, deadline: 0, hints: 3, shuffles: 3,
   combo: 0, lastMatch: 0, locked: false, revision: 0,
 });
@@ -55,7 +74,11 @@ const boardWrap = ref<HTMLDivElement | null>(null);
 const connectionLayer = ref<SVGSVGElement | null>(null);
 const modalElement = ref<HTMLDialogElement | null>(null);
 const modal = ref<ModalOptions | null>(null);
-const records = reactive<Record<Level, number>>({ easy: 0, normal: 0, hard: 0 });
+const records = reactive<Record<Mode, Record<Level, number>>>({
+  classic: { easy: 0, normal: 0, hard: 0 },
+  zen: { easy: 0, normal: 0, hard: 0 },
+  gravity: { easy: 0, normal: 0, hard: 0 },
+});
 const storageAvailable = ref(true);
 const soundEnabled = ref(false);
 const gameMessage = ref('');
@@ -79,9 +102,12 @@ let resumeAfterModal = false;
 let disposed = false;
 
 const config = computed(() => levels[state.level]);
+const modeConfig = computed(() => modes[state.mode]);
+const timed = computed(() => state.mode !== 'zen');
 const remainingPairs = computed(() => state.board.flat().filter((value) => value !== null).length / 2);
 const seconds = computed(() => Math.ceil(state.remaining / 1000));
-const timerText = computed(() => `${String(Math.floor(seconds.value / 60)).padStart(2, '0')}:${String(seconds.value % 60).padStart(2, '0')}`);
+const timerText = computed(() => timed.value
+  ? `${String(Math.floor(seconds.value / 60)).padStart(2, '0')}:${String(seconds.value % 60).padStart(2, '0')}` : '不限时');
 const blocked = computed(() => state.status === 'paused' || state.status === 'won' || state.status === 'lost');
 const toolsBlocked = computed(() => state.status !== 'playing' || state.locked);
 const startLabel = computed(() => state.status === 'playing' ? '暂停游戏'
@@ -101,13 +127,15 @@ const tiles = computed(() => state.board.flatMap((row, rowIndex) => row.map((typ
   };
 })));
 
-function loadRecords(): void {
+function loadRecords(mode: Mode = state.mode): void {
   try {
-    const saved: unknown = JSON.parse(localStorage.getItem('link-and-chill-records') || '{}');
+    const saved: unknown = JSON.parse(localStorage.getItem(modes[mode].storageKey) || '{}');
     if (saved === null || typeof saved !== 'object') return;
     for (const key of Object.keys(levels) as Level[]) {
       const value: unknown = Reflect.get(saved, key);
-      if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) records[key] = Math.max(records[key], value);
+      if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
+        records[mode][key] = Math.max(records[mode][key], value);
+      }
     }
   } catch {
     storageAvailable.value = false;
@@ -115,14 +143,18 @@ function loadRecords(): void {
 }
 
 function onStorage(event: StorageEvent): void {
-  if (event.key === 'link-and-chill-records' && event.storageArea === localStorage) loadRecords();
+  if (event.storageArea !== localStorage) return;
+  for (const mode of Object.keys(modes) as Mode[]) {
+    if (event.key === modes[mode].storageKey) loadRecords(mode);
+  }
 }
 
 function saveRecord(): void {
   loadRecords();
-  if (state.score <= records[state.level]) return;
-  records[state.level] = state.score;
-  try { localStorage.setItem('link-and-chill-records', JSON.stringify(records)); }
+  const modeRecords = records[state.mode];
+  if (state.score <= modeRecords[state.level]) return;
+  modeRecords[state.level] = state.score;
+  try { localStorage.setItem(modeConfig.value.storageKey, JSON.stringify(modeRecords)); }
   catch { storageAvailable.value = false; }
 }
 
@@ -143,39 +175,42 @@ function clearMatchAnimation(): void {
   state.locked = false;
 }
 
-function newGame(level: Level = state.level): void {
+function newGame(level: Level = state.level, mode: Mode = state.mode): void {
   state.revision += 1;
   clearMatchAnimation();
   clearHighlights();
   const levelConfig = levels[level];
   Object.assign(state, {
-    level, board: createBoard(levelConfig.rows, levelConfig.cols, levelConfig.types), status: 'ready',
+    level, mode, board: createBoard(levelConfig.rows, levelConfig.cols, levelConfig.types), status: 'ready',
     score: 0, remaining: levelConfig.seconds * 1000, deadline: 0,
     hints: levelConfig.tools, shuffles: levelConfig.tools, combo: 0, lastMatch: 0,
   });
+  loadRecords();
   comboVisible.value = false;
   confetti.value = [];
-  gameMessage.value = '准备好了吗？点击「开始游戏」，收集今天的小快乐。';
+  gameMessage.value = `${modeConfig.value.name}已就绪，点击「开始游戏」，收集今天的小快乐。`;
 }
 
 function startGame(): void {
   if (disposed || modal.value || document.hidden) return;
   if (state.status === 'ready' || state.status === 'paused') {
     state.status = 'playing';
-    state.deadline = performance.now() + state.remaining;
-    gameMessage.value = '找到两枚相同的水果，最多转两个弯，就能消除。';
+    state.deadline = timed.value ? performance.now() + state.remaining : 0;
+    gameMessage.value = modeConfig.value.description;
   }
 }
 
 function pauseGame(): void {
   if (state.status !== 'playing') return;
-  state.remaining = Math.max(0, state.deadline - performance.now());
-  if (state.remaining === 0) { finishGame(remainingPairs.value === 0); return; }
+  if (timed.value) {
+    state.remaining = Math.max(0, state.deadline - performance.now());
+    if (state.remaining === 0) { finishGame(remainingPairs.value === 0); return; }
+  }
   state.status = 'paused';
   state.combo = 0;
   state.lastMatch = 0;
   overlay.value = { symbol: 'pause', title: '休息一下', description: '小美好就在这里，等你回来。', action: '继续游戏' };
-  gameMessage.value = '已为你暂停计时，准备好后再继续。';
+  gameMessage.value = timed.value ? '已为你暂停计时，准备好后再继续。' : '棋盘已暂停，准备好后再继续。';
 }
 
 function toggleGame(): void {
@@ -285,7 +320,7 @@ function chooseTile(cell: Point, event: MouseEvent): void {
   if (disposed || modal.value) return;
   if (state.status === 'ready') startGame();
   if (state.status !== 'playing' || state.locked || state.board[cell.row][cell.col] === null) return;
-  if (performance.now() >= state.deadline) { tick(); return; }
+  if (timed.value && performance.now() >= state.deadline) { tick(); return; }
   const previous = state.selected;
   clearHighlights();
   if (sameCell(previous, cell)) return;
@@ -325,6 +360,7 @@ function chooseTile(cell: Point, event: MouseEvent): void {
   animationTimer = setTimeout(() => {
     if (disposed || revision !== state.revision || state.status === 'won' || state.status === 'lost') return;
     clearMatchAnimation();
+    if (state.mode === 'gravity') state.board = applyGravity(state.board);
     if (remainingPairs.value === 0) finishGame(true);
     else if (!findMove(state.board)) {
       state.board = shuffleBoard(state.board);
@@ -346,16 +382,17 @@ function chooseTile(cell: Point, event: MouseEvent): void {
 }
 
 function useHint(): void {
-  if (disposed || modal.value || toolsBlocked.value || state.hints <= 0) return;
-  if (performance.now() >= state.deadline) { tick(); return; }
+  if (disposed || modal.value || toolsBlocked.value || (timed.value && state.hints <= 0)) return;
+  if (timed.value && performance.now() >= state.deadline) { tick(); return; }
   clearHighlights();
   const move = findMove(state.board);
   if (!move) return;
-  state.hints -= 1;
+  if (timed.value) state.hints -= 1;
   hinted.value = [move.start, move.end];
   const { start, end } = move;
   const fruit = fruits[state.board[start.row][start.col]!][1];
-  gameMessage.value = `提示：${fruit}，第${start.row + 1}行第${start.col + 1}列与第${end.row + 1}行第${end.col + 1}列可以配对。剩余${state.hints}次提示。`;
+  const allowance = timed.value ? `剩余${state.hints}次提示。` : '悠闲模式提示不限次数。';
+  gameMessage.value = `提示：${fruit}，第${start.row + 1}行第${start.col + 1}列与第${end.row + 1}行第${end.col + 1}列可以配对。${allowance}`;
   const revision = state.revision;
   hintTimer = setTimeout(() => {
     if (!disposed && revision === state.revision) hinted.value = [];
@@ -363,11 +400,11 @@ function useHint(): void {
 }
 
 function useShuffle(): void {
-  if (disposed || modal.value || toolsBlocked.value || state.shuffles <= 0) return;
-  if (performance.now() >= state.deadline) { tick(); return; }
+  if (disposed || modal.value || toolsBlocked.value || (timed.value && state.shuffles <= 0)) return;
+  if (timed.value && performance.now() >= state.deadline) { tick(); return; }
   clearHighlights();
   state.board = shuffleBoard(state.board);
-  state.shuffles -= 1;
+  if (timed.value) state.shuffles -= 1;
   state.combo = 0;
   state.lastMatch = 0;
   playTone([392, 523.25]);
@@ -391,16 +428,16 @@ function finishGame(won: boolean): void {
   if (disposed || state.status === 'won' || state.status === 'lost') return;
   clearMatchAnimation();
   clearHighlights();
-  state.remaining = state.status === 'playing' ? Math.max(0, state.deadline - performance.now()) : state.remaining;
+  if (timed.value && state.status === 'playing') state.remaining = Math.max(0, state.deadline - performance.now());
   state.status = won ? 'won' : 'lost';
   if (won) {
-    const bonus = Math.ceil(state.remaining / 1000) * 5;
+    const bonus = timed.value ? Math.ceil(state.remaining / 1000) * 5 : 0;
     state.score += bonus;
     overlay.value = {
       symbol: 'trophy', title: '小美好，全部收集！',
-      description: `收获 ${state.score.toLocaleString('zh-CN')} 分，其中时间奖励 ${bonus} 分。\n这一刻的快乐，属于你。`, action: '再玩一局',
+      description: `收获 ${state.score.toLocaleString('zh-CN')} 分，${timed.value ? `其中时间奖励 ${bonus} 分` : '悠闲模式不计时间奖励'}。\n这一刻的快乐，属于你。`, action: '再玩一局',
     };
-    gameMessage.value = '恭喜通关！换个难度，或再来一次轻松的小挑战。';
+    gameMessage.value = '恭喜通关！换个玩法或难度，再来一次小挑战。';
     playTone([523.25, 659.25, 783.99, 1046.5], 0.25);
     celebrate();
   } else {
@@ -415,7 +452,7 @@ function finishGame(won: boolean): void {
 }
 
 function tick(): void {
-  if (disposed || state.status !== 'playing') return;
+  if (disposed || state.status !== 'playing' || !timed.value) return;
   state.remaining = Math.max(0, state.deadline - performance.now());
   if (state.remaining === 0) finishGame(remainingPairs.value === 0);
 }
@@ -450,20 +487,23 @@ function confirmModal(): void {
   closeModal();
 }
 
-function requestRestart(level: Level = state.level): void {
+function requestRestart(level: Level = state.level, mode: Mode = state.mode): void {
   if (state.status === 'playing' || state.status === 'paused') {
+    const switchingMode = mode !== state.mode;
     openModal({
-      title: level === state.level ? '重新收集小美好？' : `切换到${levels[level].name}模式？`,
-      content: '当前棋盘和计时将重置，已获得的最佳分数会保留。',
-      confirm: level === state.level ? '重新开始' : '切换难度', action: () => newGame(level),
+      title: switchingMode ? `切换到${modes[mode].name}？`
+        : level === state.level ? '重新收集小美好？' : `切换到${levels[level].name}难度？`,
+      content: '当前棋盘和计时将重置，各玩法、各难度的最佳分数会分别保留。',
+      confirm: switchingMode ? '切换玩法' : level === state.level ? '重新开始' : '切换难度',
+      action: () => newGame(level, mode),
     });
-  } else newGame(level);
+  } else newGame(level, mode);
 }
 
 function showRules(): void {
   openModal({
     title: '快乐很简单',
-    content: '1. 点击两枚相同的水果，连线最多转两次弯。\n2. 连线不能穿过其他水果，但可以经过棋盘外侧。\n3. 在倒计时结束前清空棋盘，即可通关。\n\n每对水果 100 分；5 秒内连续配对，连击每级额外加 20 分，最多额外加 100 分。通关后每剩余 1 秒奖励 5 分。\n\n提示会标出一对可消除的水果；洗牌保留空位和水果数量。无解时会自动免费洗牌。切换页面会自动暂停。\n\n快捷键：空格暂停 / 继续，H 提示，R 洗牌。',
+    content: `1. 点击两枚相同的水果，连线最多转两次弯。\n2. 连线不能穿过其他水果，但可以经过棋盘外侧。\n3. ${modeConfig.value.name}：${modeConfig.value.description}\n\n每对水果 100 分；5 秒内连续配对，连击每级额外加 20 分，最多额外加 100 分。${timed.value ? '通关后每剩余 1 秒奖励 5 分。' : '不限时，也不计时间奖励。'}\n\n提示会标出一对可消除的水果；洗牌保留空位和水果数量。${timed.value ? '道具次数由难度决定。' : '提示和洗牌不限次数。'}无解时会自动免费洗牌。切换页面会自动暂停。各玩法、各难度分别记录最高分。\n\n快捷键：空格暂停 / 继续，H 提示，R 洗牌。`,
     confirm: '我知道啦',
   });
 }
@@ -488,7 +528,6 @@ function onVisibilityChange(): void {
 
 newGame();
 onMounted(() => {
-  loadRecords();
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('blur', onBlur);
@@ -542,14 +581,21 @@ onBeforeUnmount(() => {
       <div class="game-layout">
         <section class="game-card" aria-label="连连看游戏">
           <div class="game-heading">
-            <div class="game-name"><span class="game-symbol"><SvgIcon class="icon" aria-hidden="true" name="i-grid" /></span><div><h2>经典连连看</h2><span>小小的连接，大大的快乐</span></div></div>
+            <div class="game-name"><span class="game-symbol"><SvgIcon class="icon" aria-hidden="true" name="i-grid" /></span><div><h2>{{ modeConfig.title }}</h2><span>小小的连接，大大的快乐</span></div></div>
             <div class="difficulty" role="group" aria-label="游戏难度">
               <button v-for="(level, key) in levels" :key="key" type="button" :data-level="key" :class="{ active: state.level === key }" :aria-pressed="state.level === key" @click="state.level !== key && requestRestart(key)">{{ level.name }}</button>
             </div>
           </div>
+          <div class="mode-picker" role="group" aria-label="游戏玩法" aria-describedby="mode-description">
+            <button v-for="(mode, key) in modes" :key="key" type="button" :data-mode="key"
+              :class="{ active: state.mode === key }" :aria-pressed="state.mode === key" @click="state.mode !== key && requestRestart(state.level, key)">
+              <strong>{{ mode.name }}</strong><span>{{ mode.tagline }}</span>
+            </button>
+          </div>
+          <p id="mode-description" class="mode-description">{{ modeConfig.description }}</p>
           <div class="stats-row">
             <div class="stat"><span class="stat-icon score-icon"><SvgIcon class="icon" aria-hidden="true" name="i-spark" /></span><div><span class="stat-label">当前得分</span><strong id="score">{{ state.score.toLocaleString('zh-CN') }}<span>分</span></strong></div></div>
-            <div class="stat"><span class="stat-icon time-icon"><SvgIcon class="icon" aria-hidden="true" name="i-clock" /></span><div><span class="stat-label">剩余时间</span><strong id="timer" :class="{ urgent: seconds <= 30 && state.status === 'playing' }">{{ timerText }}</strong></div></div>
+            <div class="stat"><span class="stat-icon time-icon"><SvgIcon class="icon" aria-hidden="true" name="i-clock" /></span><div><span class="stat-label">{{ timed ? '剩余时间' : '悠闲时光' }}</span><strong id="timer" :class="{ urgent: timed && seconds <= 30 && state.status === 'playing' }">{{ timerText }}</strong></div></div>
             <div class="stat"><span class="stat-icon pair-icon"><SvgIcon class="icon" aria-hidden="true" name="i-grid" /></span><div><span class="stat-label">剩余配对</span><strong id="pairs">{{ remainingPairs }}<span>对</span></strong></div></div>
           </div>
           <div id="board-wrap" ref="boardWrap" class="board-wrap">
@@ -573,8 +619,8 @@ onBeforeUnmount(() => {
           </div>
           <div class="game-toolbar">
             <div class="tools">
-              <button id="hint-button" class="tool-button" type="button" :disabled="toolsBlocked || state.hints === 0" @click="useHint"><SvgIcon class="icon" aria-hidden="true" name="i-bulb" />提示<span id="hint-count" class="count">{{ state.hints }}</span></button>
-              <button id="shuffle-button" class="tool-button" type="button" :disabled="toolsBlocked || state.shuffles === 0" @click="useShuffle"><SvgIcon class="icon" aria-hidden="true" name="i-shuffle" />洗牌<span id="shuffle-count" class="count">{{ state.shuffles }}</span></button>
+              <button id="hint-button" class="tool-button" type="button" :disabled="toolsBlocked || (timed && state.hints === 0)" @click="useHint"><SvgIcon class="icon" aria-hidden="true" name="i-bulb" />提示<span id="hint-count" class="count" :aria-label="!timed ? '不限次数' : undefined">{{ timed ? state.hints : '∞' }}</span></button>
+              <button id="shuffle-button" class="tool-button" type="button" :disabled="toolsBlocked || (timed && state.shuffles === 0)" @click="useShuffle"><SvgIcon class="icon" aria-hidden="true" name="i-shuffle" />洗牌<span id="shuffle-count" class="count" :aria-label="!timed ? '不限次数' : undefined">{{ timed ? state.shuffles : '∞' }}</span></button>
               <button id="reset-button" class="reset-button" type="button" aria-label="重新开始" title="重新开始" @click="requestRestart()"><SvgIcon class="icon" aria-hidden="true" name="i-reset" /></button>
             </div>
             <button id="start-button" class="primary-button" type="button" @click="toggleGame"><SvgIcon class="icon" aria-hidden="true" :name="state.status === 'playing' ? 'i-pause' : 'i-play'" /><span>{{ startLabel }}</span></button>
@@ -583,10 +629,11 @@ onBeforeUnmount(() => {
         </section>
 
         <aside class="sidebar">
-          <section class="guide-card"><div class="section-heading"><h2>快乐很简单</h2><span>HOW TO PLAY</span></div><ol class="guide-list"><li><span class="step-number step-one">1</span><div><h3>找到相同的水果</h3><p>点击两个一样的图案<br>让它们成为一对好朋友</p></div></li><li><span class="step-number step-two">2</span><div><h3>两次转弯，就能连上</h3><p>连线不能穿过其他图案<br>但可以从棋盘外面绕个弯</p></div></li><li><span class="step-number step-three">3</span><div><h3>消除全部，收获快乐</h3><p>在时间结束前清空棋盘<br>连续配对还会有额外加分</p></div></li></ol><div class="guide-tip"><SvgIcon class="icon" aria-hidden="true" name="i-heart" />卡住了？提示和洗牌来帮你。</div></section>
+          <section class="guide-card"><div class="section-heading"><h2>快乐很简单</h2><span>HOW TO PLAY</span></div><ol class="guide-list"><li><span class="step-number step-one">1</span><div><h3>找到相同的水果</h3><p>点击两个一样的图案<br>让它们成为一对好朋友</p></div></li><li><span class="step-number step-two">2</span><div><h3>两次转弯，就能连上</h3><p>连线不能穿过其他图案<br>但可以从棋盘外面绕个弯</p></div></li><li><span class="step-number step-three">3</span><div><h3>消除全部，收获快乐</h3><p>{{ timed ? '在时间结束前清空棋盘' : '不限时间，慢慢清空棋盘' }}<br>{{ state.mode === 'gravity' ? '消除后水果向下补位' : '连续配对还会有额外加分' }}</p></div></li></ol><div class="guide-tip"><SvgIcon class="icon" aria-hidden="true" name="i-heart" />卡住了？提示和洗牌来帮你。</div></section>
           <section class="record-card">
             <div class="section-heading"><h2><SvgIcon class="icon" aria-hidden="true" name="i-trophy" />你的最佳记录</h2><span class="record-badge">{{ config.name }}</span></div>
-            <div class="record-value"><strong id="best-score">{{ records[state.level].toLocaleString('zh-CN') }}</strong><span>分</span><SvgIcon class="record-spark icon" aria-hidden="true" name="i-spark" /></div>
+            <p class="record-mode">{{ modeConfig.name }} · 各玩法独立记录</p>
+            <div class="record-value"><strong id="best-score">{{ records[state.mode][state.level].toLocaleString('zh-CN') }}</strong><span>分</span><SvgIcon class="record-spark icon" aria-hidden="true" name="i-spark" /></div>
             <div class="record-bottom"><span id="record-caption" :class="{ 'storage-notice': !storageAvailable }">{{ storageAvailable ? '每一次尝试，都值得被记录' : '浏览器限制存储，记录仅保留于本次打开' }}</span><span>{{ storageAvailable ? '本地保存' : '暂存于此页' }}<SvgIcon v-if="storageAvailable" class="tiny-dot" viewBox="0 0 8 8" aria-hidden="true" sprite="illustrations" name="status-dot" /></span></div>
           </section>
           <section class="break-card"><div class="flower" aria-hidden="true"><SvgIcon viewBox="0 0 100 100" sprite="illustrations" name="link-flower" /></div><span class="break-label">A MOMENT FOR YOURSELF</span><h3>慢慢来，快乐不赶时间。</h3><p>放松眼睛，深呼吸<br>下一对小美好，就在眼前。</p></section>

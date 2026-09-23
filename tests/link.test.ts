@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createBoard, findMove, findPath, shuffleBoard } from '../src/games/link/engine.ts';
+import { applyGravity, createBoard, findMove, findPath, shuffleBoard } from '../src/games/link/engine.ts';
 import type { Board, Cell, Move, Point, ReadonlyBoard } from '../src/games/link/engine.ts';
 
 const point = (row: number, col: number): Point => ({ row, col });
@@ -70,6 +70,23 @@ function assertPreserved(before: ReadonlyBoard, after: Board): void {
     }
   }
   assert.deepEqual(multiset(after), multiset(before));
+}
+
+function assertGravity(before: ReadonlyBoard, after: Board): void {
+  assert.notStrictEqual(after, before);
+  assert.equal(after.length, before.length);
+  assert.equal(new Set(after).size, after.length, 'Rows must not alias each other');
+  for (let row = 0; row < before.length; row += 1) {
+    assert.ok(!before.includes(after[row]), 'Output rows must not alias input rows');
+    assert.equal(after[row].length, before[row].length);
+  }
+  assert.deepEqual(multiset(after), multiset(before));
+  for (let col = 0; col < (before[0]?.length ?? 0); col += 1) {
+    const types = before.map((row) => row[col]).filter((type) => type !== null);
+    assert.deepEqual(after.map((row) => row[col]), [
+      ...Array<Cell>(before.length - types.length).fill(null), ...types,
+    ], 'Each column must have only leading holes and preserve fruit order');
+  }
 }
 
 function seededRandom(seed: number): () => number {
@@ -234,6 +251,78 @@ test('findMove returns null for deadlocks, singletons, and empty boards', () => 
   }
 });
 
+test('gravity compacts mixed holes by column, preserving order, zeros, and empty columns', () => {
+  const board = freezeBoard([
+    [1, null, 0, null],
+    [null, 2, null, null],
+    [3, null, 4, null],
+    [null, 5, 0, null],
+    [6, null, null, null],
+  ]);
+  const fallen = applyGravity(board);
+  assert.deepEqual(fallen, [
+    [null, null, null, null],
+    [null, null, null, null],
+    [1, null, 0, null],
+    [3, 2, 4, null],
+    [6, 5, 0, null],
+  ]);
+  assertGravity(board, fallen);
+});
+
+test('gravity never mutates its input or shares output rows', () => {
+  const original = [[0, null, 1], [null, 2, 0], [3, null, null]];
+  const input = freezeBoard(original);
+  const fallen = applyGravity(input);
+  assertGravity(input, fallen);
+  assert.deepEqual(input, original);
+  fallen[0][0] = 99;
+  assert.equal(fallen[1][0], 0);
+  assert.equal(fallen[2][0], 3);
+  assert.deepEqual(input, original);
+});
+
+test('gravity is idempotent for empty, single-row, single-column, and full boards', () => {
+  const cases: Board[] = [
+    [], [[]], [[], []], [[null, null], [null, null]],
+    [[null, 0, null, 1]],
+    [[0], [null], [-3], [null], [0]],
+    [[0, 1], [2, 3]],
+  ];
+  for (const board of cases) {
+    const input = freezeBoard(board);
+    const fallen = applyGravity(input);
+    assertGravity(input, fallen);
+    assert.deepEqual(input, board);
+    const settled = freezeBoard(fallen);
+    const again = applyGravity(settled);
+    assertGravity(settled, again);
+    assert.deepEqual(again, fallen);
+  }
+});
+
+test('a deadlock caused by gravity stays unchanged until explicitly shuffled', (t) => {
+  const random = t.mock.method(Math, 'random', seededRandom(84));
+  const board: Board = [[0, 1], [2, 2], [1, 0]];
+  const start = point(1, 0);
+  const end = point(1, 1);
+  assertPath(board, start, end, findPath(board, start, end));
+  board[start.row][start.col] = null;
+  board[end.row][end.col] = null;
+  assertMove(board, findMove(board));
+  const fallen = applyGravity(freezeBoard(board));
+  assertGravity(board, fallen);
+  assert.deepEqual(fallen, [[null, null], [0, 1], [1, 0]]);
+  assert.equal(findMove(fallen), null);
+  assert.equal(random.mock.callCount(), 0, 'Gravity must not randomize the board');
+  const input = freezeBoard(fallen);
+  const shuffled = shuffleBoard(input);
+  assertPreserved(input, shuffled);
+  assert.deepEqual(input, fallen);
+  assert.deepEqual(applyGravity(shuffled), shuffled);
+  assertMove(shuffled, findMove(shuffled));
+});
+
 test('createBoard produces paired types, requested dimensions, and a legal move', (t) => {
   t.mock.method(Math, 'random', seededRandom(12345));
   for (const [rows, cols, typeCount] of [[1, 2, 10], [2, 1, 1], [3, 4, 4], [6, 8, 7], [1, 10, 3], [10, 1, 2], [4, 6, 6], [6, 8, 10], [8, 8, 12]]) {
@@ -365,4 +454,37 @@ test('all three difficulty boards can be cleared with automatic deadlock recover
       assert.equal(findMove(board), null);
     }
   }
+});
+
+test('all three difficulties clear with gravity after every pair and deadlock recovery', (t) => {
+  t.mock.method(Math, 'random', seededRandom(2026));
+  let recoveries = 0;
+  for (const [rows, cols, types] of [[4, 6, 6], [6, 8, 10], [8, 8, 12]]) {
+    for (let game = 0; game < 10; game += 1) {
+      let board = createBoard(rows, cols, types);
+      for (let pairs = rows * cols / 2; pairs > 0; pairs -= 1) {
+        let move = findMove(board);
+        if (!move) {
+          const before = freezeBoard(board);
+          board = shuffleBoard(before);
+          assertPreserved(before, board);
+          assert.deepEqual(applyGravity(board), board, 'Shuffle must keep columns settled');
+          move = findMove(board);
+          recoveries += 1;
+        }
+        assertMove(board, move);
+        board[move.start.row][move.start.col] = null;
+        board[move.end.row][move.end.col] = null;
+        const before = freezeBoard(board);
+        const fallen = applyGravity(before);
+        assertGravity(before, fallen);
+        assert.deepEqual(before, board);
+        board = fallen;
+        assert.equal(multiset(board).length, (pairs - 1) * 2);
+      }
+      assert.ok(board.flat().every((cell) => cell === null));
+      assert.equal(findMove(board), null);
+    }
+  }
+  assert.ok(recoveries > 0, 'Seeded games must exercise deadlocks after gravity');
 });

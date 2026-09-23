@@ -43,7 +43,7 @@ export const games: GameDefinition[] = [
     name: '连连看',
     englishName: 'LINK & CHILL',
     tagline: '连起小美好，快乐刚刚好。',
-    description: '找一找相同的水果，让每一次连接，都带来一点好心情。',
+    description: '经典限时、悠闲畅玩、重力下落，三种玩法连起相同水果。',
     category: '轻松配对',
     controls: '鼠标 / 触屏',
     color: '#8872af',

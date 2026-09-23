@@ -245,6 +245,184 @@ test('连连看难度切换、取消重开和超时恢复', async ({ page }) => 
   await expect(page.locator('#timer')).toHaveText('03:00');
 });
 
+test('连连看玩法切换可取消，确认后重置并保留难度', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+  await page.goto('/#/games/link');
+  await page.locator('[data-level="easy"]').click();
+  await page.clock.install();
+  await page.locator('#start-button').click();
+  await page.locator('.tile[data-row="0"][data-col="0"]').click();
+  await page.locator('.tile[data-row="0"][data-col="1"]').click();
+  await page.clock.runFor(300);
+  await page.locator('[data-mode="zen"]').click();
+  await expect(page.locator('#modal-title')).toHaveText('切换到悠闲模式？');
+  const time = await page.locator('#timer').textContent();
+  await page.clock.runFor(5000);
+  await expect(page.locator('#timer')).toHaveText(time!);
+  await page.locator('#modal-cancel').click();
+  await expect(page.locator('[data-mode="classic"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.tile.empty')).toHaveCount(2);
+  await expect(page.locator('#score')).toHaveText('100分');
+  await expect(page.locator('#board-overlay')).toBeHidden();
+  await page.locator('[data-mode="zen"]').click();
+  await page.locator('#modal-confirm').click();
+  await expect(page.locator('[data-mode="zen"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-level="easy"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.tile')).toHaveCount(24);
+  await expect(page.locator('.tile.empty')).toHaveCount(0);
+  await expect(page.locator('#score')).toHaveText('0分');
+  await expect(page.locator('#best-score')).toHaveText('0');
+  await expect(page.locator('#timer')).toHaveText('不限时');
+  await page.locator('[data-mode="classic"]').click();
+  await expect(page.locator('#best-score')).toHaveText('100');
+  await expect(page.locator('#timer')).toHaveText('03:00');
+  await expect(page.locator('#hint-count')).toHaveText('5');
+  await expectNoOverflow(page);
+});
+
+test('连连看悠闲模式长时间游玩和暂停后仍可使用无限道具', async ({ page }) => {
+  await page.goto('/#/games/link');
+  await page.locator('[data-mode="zen"]').click();
+  await page.locator('[data-level="hard"]').click();
+  await page.clock.install();
+  await page.locator('#start-button').click();
+  await page.clock.runFor(240000);
+  await expect(page.locator('#board-overlay')).toBeHidden();
+  await expect(page.locator('#timer')).toHaveText('不限时');
+  await expect(page.locator('#timer')).not.toHaveClass(/urgent/);
+  for (let use = 0; use < 7; use++) {
+    await page.keyboard.press('h');
+    await expect(page.locator('.tile.hinted')).toHaveCount(2);
+    await page.keyboard.press('r');
+    await expect(page.locator('.tile.hinted')).toHaveCount(0);
+  }
+  await expect(page.locator('#hint-count')).toHaveText('∞');
+  await expect(page.locator('#shuffle-count')).toHaveText('∞');
+  await expect(page.locator('#hint-button')).toBeEnabled();
+  await expect(page.locator('#shuffle-button')).toBeEnabled();
+  await page.locator('#start-button').click();
+  await page.clock.runFor(240000);
+  await expect(page.locator('#overlay-title')).toHaveText('休息一下');
+  await expect(page.locator('#hint-button')).toBeDisabled();
+  await page.locator('#overlay-action').click();
+  await page.locator('#rules-button').click();
+  await expect(page.locator('#modal-content')).toContainText('提示和洗牌不限次数');
+  await expect(page.locator('#modal-content')).toContainText('不计时间奖励');
+  await page.locator('#modal-confirm').click();
+  await page.locator('#hint-button').click();
+  const cells = await page.locator('.tile.hinted').evaluateAll(tiles => tiles.map(tile => tile.getAttribute('aria-label')!));
+  for (const label of cells) await page.getByRole('button', { name: label, exact: true }).click();
+  await page.clock.runFor(300);
+  await expect(page.locator('.tile.empty')).toHaveCount(2);
+  await expect(page.locator('#score')).toHaveText('100分');
+  await page.locator('[data-mode="gravity"]').click();
+  await page.locator('#modal-confirm').click();
+  await expect(page.locator('#hint-count')).toHaveText('2');
+  await expect(page.locator('#timer')).toHaveText('03:00');
+  await page.locator('#start-button').click();
+  await page.clock.runFor(180200);
+  await expect(page.locator('#overlay-title')).toHaveText('差一点点，也很棒');
+  await page.locator('#overlay-action').click();
+  await expect(page.locator('[data-mode="gravity"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#timer')).toHaveText('03:00');
+});
+
+test('连连看悠闲通关不加时间奖励，重玩和重新打开保留独立记录', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+  await page.goto('/#/games/link');
+  await page.locator('[data-mode="zen"]').click();
+  await page.locator('[data-level="easy"]').click();
+  await page.clock.install();
+  await page.locator('#start-button').click();
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 6; col += 2) {
+      await page.locator(`.tile[data-row="${row}"][data-col="${col}"]`).click();
+      await page.locator(`.tile[data-row="${row}"][data-col="${col + 1}"]`).click();
+      await page.clock.runFor(6000);
+    }
+  }
+  await expect(page.locator('#overlay-title')).toHaveText('小美好，全部收集！');
+  await expect(page.locator('#overlay-description')).toContainText('悠闲模式不计时间奖励');
+  await expect(page.locator('#score')).toHaveText('1,200分');
+  await expect(page.locator('#best-score')).toHaveText('1,200');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('link-and-chill-records-zen')!)))
+    .toEqual({ easy: 1200, normal: 0, hard: 0 });
+  expect(await page.evaluate(() => localStorage.getItem('link-and-chill-records'))).toBeNull();
+  await page.locator('#overlay-action').click();
+  await expect(page.locator('.tile.empty')).toHaveCount(0);
+  await expect(page.locator('#timer')).toHaveText('不限时');
+  await expect(page.locator('[data-mode="zen"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await page.locator('[data-mode="zen"]').click();
+  await expect(page.locator('#best-score')).toHaveText('0');
+  await page.locator('[data-level="easy"]').click();
+  await expect(page.locator('#best-score')).toHaveText('1,200');
+});
+
+test('连连看重力补位保持列顺序，提示和洗牌可用且能完整通关', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+  await page.goto('/#/games/link');
+  await page.locator('[data-mode="gravity"]').click();
+  await page.locator('[data-level="easy"]').click();
+  await page.clock.install();
+  await page.locator('#start-button').click();
+  const cell = (row: number, col: number) => page.locator(`.tile[data-row="${row}"][data-col="${col}"]`);
+  await cell(3, 0).focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await page.clock.runFor(300);
+  await expect(cell(0, 0)).toHaveClass(/empty/);
+  await expect(cell(0, 1)).toHaveClass(/empty/);
+  await expect(cell(1, 0)).toHaveAttribute('aria-label', '樱桃，第2行第1列');
+  await expect(cell(2, 0)).toHaveAttribute('aria-label', '柠檬，第3行第1列');
+  await expect(cell(3, 0)).toHaveAttribute('aria-label', '樱桃，第4行第1列');
+  await expect(cell(3, 2)).toBeFocused();
+  await page.locator('#hint-button').click();
+  await expect(page.locator('.tile.hinted')).toHaveCount(2);
+  await expect(page.locator('#hint-count')).toHaveText('4');
+  await page.locator('#shuffle-button').click();
+  await expect(page.locator('.tile.hinted')).toHaveCount(0);
+  await expect(page.locator('#shuffle-count')).toHaveText('4');
+  await expect(cell(0, 0)).toHaveClass(/empty/);
+  await expect(cell(0, 1)).toHaveClass(/empty/);
+  for (let col = 0; col < 6; col += 2) {
+    for (let pair = col === 0 ? 1 : 0; pair < 4; pair++) {
+      await cell(3, col).click();
+      await cell(3, col + 1).click();
+      await page.clock.runFor(300);
+    }
+  }
+  await expect(page.locator('.tile.empty')).toHaveCount(24);
+  await expect(page.locator('#overlay-title')).toHaveText('小美好，全部收集！');
+  const score = Number((await page.locator('#score').textContent())!.replace(/\D/g, ''));
+  expect(score).toBeGreaterThan(1200);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('link-and-chill-records-gravity')!).easy)).toBe(score);
+  await page.locator('[data-mode="classic"]').click();
+  await expect(page.locator('#best-score')).toHaveText('0');
+  await expectNoOverflow(page);
+});
+
+test('连连看重力配对后立即切换玩法不把下落动画带入新棋盘', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
+  await page.goto('/#/games/link');
+  await page.locator('[data-mode="gravity"]').click();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.locator('.tile[data-row="5"][data-col="0"]').click();
+  await page.locator('.tile[data-row="5"][data-col="1"]').click();
+  await expect(page.locator('#board')).toHaveClass(/locked/);
+  await page.locator('[data-mode="zen"]').click();
+  await page.locator('#modal-confirm').click();
+  await page.clock.runFor(1000);
+  await expect(page.locator('#board')).not.toHaveClass(/locked/);
+  await expect(page.locator('.tile.empty')).toHaveCount(0);
+  await expect(page.locator('#score')).toHaveText('0分');
+  await expect(page.locator('#timer')).toHaveText('不限时');
+  await expect(page.locator('#start-button')).toHaveText('开始游戏');
+  await expect(page.locator('#connection-line')).toHaveAttribute('points', '');
+});
+
 test('连连看清空棋盘通关并保存最高分', async ({ page }) => {
   await page.addInitScript(() => { Math.random = () => 1 - Number.EPSILON; });
   await page.goto('/#/games/link');

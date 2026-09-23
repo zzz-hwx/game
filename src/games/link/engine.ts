@@ -116,6 +116,22 @@ export function findMove(board: ReadonlyBoard): Move | null {
   return null;
 }
 
+export function applyGravity(board: ReadonlyBoard): Board {
+  const result = board.map((row) => row.slice());
+  for (let col = 0; col < (board[0]?.length ?? 0); col += 1) {
+    let target = board.length - 1;
+    for (let row = board.length - 1; row >= 0; row -= 1) {
+      const type = board[row][col];
+      if (type !== null) {
+        result[target][col] = type;
+        target -= 1;
+      }
+    }
+    for (; target >= 0; target -= 1) result[target][col] = null;
+  }
+  return result;
+}
+
 export function createBoard(rows: number, cols: number, typeCount: number): Board {
   if (!Number.isSafeInteger(rows) || rows <= 0
     || !Number.isSafeInteger(cols) || cols <= 0
