@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  COLS, ROWS, createGame, levels, parsePreferences, queueTurn, spawnFood, startGame, tick,
+  COLS, ROWS, FOOD_EDGE_UNLOCK_SCORE, FOOD_SAFE_MARGIN, createGame, levels, parsePreferences, queueTurn, spawnFood, startGame, tick,
 } from '../src/games/snake/engine.ts'
 import type { Direction, GameStatus, Point } from '../src/games/snake/engine.ts'
 
@@ -39,7 +39,7 @@ test('snake: ordinary moves keep length, and eating adds one cell and ten points
   assert.deepEqual(game.snake[0], { x: 18, y: 11 })
   assert.equal(game.snake.length, 5)
   assert.equal(game.score, 10)
-  assert.deepEqual(game.food, { x: 0, y: 0 })
+  assert.deepEqual(game.food, { x: 3, y: 3 })
 })
 
 test('snake: turns reject repeats and reversal against the last queued direction', () => {
@@ -111,17 +111,61 @@ test('snake: entering the departing tail is legal, but not when eating', () => {
   assert.equal(eatingGame.score, 0)
 })
 
+test('snake: below 100 points food uniformly picks central free cells with a three-cell wall buffer', () => {
+  assert.equal(FOOD_EDGE_UNLOCK_SCORE, 100)
+  assert.equal(FOOD_SAFE_MARGIN, 3)
+  const snake = [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 12, y: 11 }]
+  const available: Point[] = []
+  for (let y = 3; y < ROWS - 3; y++) {
+    for (let x = 3; x < COLS - 3; x++) {
+      if (!snake.some(part => part.x === x && part.y === y)) available.push({ x, y })
+    }
+  }
+  for (const score of [0, 10, 90, 99]) {
+    for (const [index, point] of available.entries()) {
+      assert.deepEqual(spawnFood(snake, score, () => (index + 0.5) / available.length), point)
+    }
+    assert.deepEqual(spawnFood(snake, score, () => 0), available[0])
+    assert.deepEqual(spawnFood(snake, score, () => 0.999999), available.at(-1))
+  }
+})
+
+test('snake: at 100 points and above food can reach every cell, including all walls and corners', () => {
+  for (const score of [100, 110, 1000]) {
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        assert.deepEqual(spawnFood([], score, () => (y * COLS + x + 0.5) / (COLS * ROWS)), { x, y })
+      }
+    }
+  }
+})
+
+test('snake: food uses the score after eating and restarting restores central spawning', () => {
+  for (const score of [80, 90, 100]) {
+    const game = runningGame()
+    game.score = score
+    game.snake = Array.from({ length: 4 + score / 10 }, (_, index) => ({ x: 17 - index, y: 11 }))
+    assert.equal(tick(game, () => 0), 'ate')
+    assert.equal(game.score, score + 10)
+    assert.deepEqual(game.food, score < 90 ? { x: 3, y: 3 } : { x: 0, y: 0 })
+    startGame(game)
+    assert.equal(game.score, 0)
+    for (let i = 0; i < 9; i++) assert.equal(tick(game), 'moved')
+    assert.equal(tick(game, () => 0), 'ate')
+    assert.deepEqual(game.food, { x: 3, y: 3 })
+  }
+})
+
 test('snake: food spawning only picks unoccupied cells, including the final cell', () => {
   const snake: Point[] = []
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) snake.push({ x, y })
   }
-  assert.equal(spawnFood(snake), null)
+  const score = (COLS * ROWS - 4) * 10
+  assert.equal(spawnFood(snake, score), null)
   const last = snake.pop()
-  assert.deepEqual(spawnFood(snake, () => 0), last)
-  assert.deepEqual(spawnFood(snake, () => 0.999999), last)
-  assert.deepEqual(spawnFood([], () => 0), { x: 0, y: 0 })
-  assert.deepEqual(spawnFood([], () => 0.999999), { x: COLS - 1, y: ROWS - 1 })
+  assert.deepEqual(spawnFood(snake, score - 10, () => 0), last)
+  assert.deepEqual(spawnFood(snake, score - 10, () => 0.999999), last)
 })
 
 test('snake: eating the final free cell wins with a full board and no food', () => {
@@ -136,10 +180,11 @@ test('snake: eating the final free cell wins with a full board and no food', () 
   }
   game.direction = 'left'
   game.food = { x: 0, y: 0 }
+  game.score = (game.snake.length - 4) * 10
   assert.equal(tick(game), 'won')
   assert.equal(game.status, 'won')
   assert.equal(game.snake.length, COLS * ROWS)
-  assert.equal(game.score, 10)
+  assert.equal(game.score, (COLS * ROWS - 4) * 10)
   assert.equal(game.food, null)
   assert.equal(tick(game), 'idle')
 })

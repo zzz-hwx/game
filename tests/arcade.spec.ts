@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import type { SnakeState } from '../src/games/snake/engine';
 
 const entries = [
   { id: 'snake', name: '贪吃蛇', selector: '.snake-game' },
@@ -256,6 +257,44 @@ test('贪吃蛇吃果实、暂停、碰墙结束和重新开始', async ({ page 
   await page.getByRole('link', { name: '开始玩贪吃蛇', exact: true }).click();
   await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'ready');
   await expect(page.locator('#best-score')).toHaveText('10');
+});
+
+test('贪吃蛇低分中央刷新、达到100分开放角落、重开恢复避让', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => { Math.random = () => 0; });
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await expect(page.locator('#game-controls-help')).toContainText('未满 100 分只在中央刷新');
+  await page.locator('#start-button').click();
+  const game = await page.locator('.snake-game').evaluateHandle(element => {
+    return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+  });
+  await page.clock.runFor(1300);
+  await expect(page.locator('#score')).toHaveText('10');
+  expect(await game.evaluate(state => state.food)).toEqual({ x: 3, y: 3 });
+  await game.evaluate(state => {
+    state.score = 90;
+    state.snake = Array.from({ length: 13 }, (_, index) => ({ x: 17 - index, y: 11 }));
+    state.food = { x: 18, y: 11 };
+  });
+  await page.clock.runFor(130);
+  await expect(page.locator('#score')).toHaveText('100');
+  expect(await game.evaluate(state => state.food)).toEqual({ x: 0, y: 0 });
+  const foodPixel = await page.locator('#game-canvas').evaluate((canvas: HTMLCanvasElement) => {
+    return [...canvas.getContext('2d')!.getImageData(Math.floor(canvas.width * 0.5 / 28), Math.floor(canvas.height * 0.5 / 22), 1, 1).data];
+  });
+  expect(foodPixel).toEqual([204, 123, 94, 255]);
+  await page.locator('#restart-button').click();
+  await expect(page.locator('#score')).toHaveText('00');
+  await expect(page.locator('#best-score')).toHaveText('100');
+  await page.clock.runFor(1300);
+  await expect(page.locator('#score')).toHaveText('10');
+  expect(await game.evaluate(state => state.food)).toEqual({ x: 3, y: 3 });
+  await expectNoOverflow(page);
+  expect(errors).toEqual([]);
 });
 
 test('俄罗斯方块移动、暂存、硬降、暂停和重开', async ({ page }) => {

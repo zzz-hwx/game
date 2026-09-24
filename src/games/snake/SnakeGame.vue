@@ -2,7 +2,7 @@
 import SvgIcon from '../../components/SvgIcon.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  CELL, COLS, ROWS, createGame, directions, levels, parsePreferences, queueTurn,
+  CELL, COLS, ROWS, FOOD_EDGE_UNLOCK_SCORE, createGame, directions, levels, parsePreferences, queueTurn,
   startGame as resetAndStart, tick,
 } from './engine'
 import type { Direction, GameStatus, Level, Point } from './engine'
@@ -478,7 +478,7 @@ onBeforeUnmount(() => {
             <div class="section-heading"><h2>简单三步，快乐加倍</h2><SvgIcon class="icon muted" aria-hidden="true" name="icon-arrow" /></div>
             <ol id="game-controls-help" class="instructions">
               <li><span class="step-number">1</span><div><strong>控制方向</strong><p>方向键或 WASD，带小蛇去探索。</p></div></li>
-              <li><span class="step-number">2</span><div><strong>吃掉小红果</strong><p>每吃一颗 +10 分，也会长大一格。</p></div></li>
+              <li><span class="step-number">2</span><div><strong>吃掉小红果</strong><p>每吃一颗 +10 分，也会长大一格。</p><p>未满 {{ FOOD_EDGE_UNLOCK_SCORE }} 分只在中央刷新，达到后墙边、角落也会出现。</p></div></li>
               <li><span class="step-number">3</span><div><strong>记得留条退路</strong><p>别撞到墙壁，也别咬到自己。</p></div></li>
             </ol>
             <div class="keyboard-guide" aria-hidden="true"><div class="key-row"><kbd>↑</kbd></div><div class="key-row"><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div><span>或 W / A / S / D</span></div>

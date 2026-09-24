@@ -1,6 +1,8 @@
 export const COLS = 28
 export const ROWS = 22
 export const CELL = 25
+export const FOOD_EDGE_UNLOCK_SCORE = 100
+export const FOOD_SAFE_MARGIN = 3
 
 export const levels = {
   easy: { delay: 190, caption: '慢慢来，快乐不需要赶路' },
@@ -54,11 +56,12 @@ export function queueTurn(game: SnakeState, name: Direction): boolean {
   return true
 }
 
-export function spawnFood(snake: readonly Point[], random: () => number = Math.random): Point | null {
+export function spawnFood(snake: readonly Point[], score: number, random: () => number = Math.random): Point | null {
   const occupied = new Set(snake.map(part => part.y * COLS + part.x))
+  const margin = score < FOOD_EDGE_UNLOCK_SCORE ? FOOD_SAFE_MARGIN : 0
   const available: Point[] = []
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
+  for (let y = margin; y < ROWS - margin; y++) {
+    for (let x = margin; x < COLS - margin; x++) {
       if (!occupied.has(y * COLS + x)) available.push({ x, y })
     }
   }
@@ -87,7 +90,7 @@ export function tick(game: SnakeState, random: () => number = Math.random): Tick
     return 'moved'
   }
   game.score += 10
-  game.food = spawnFood(game.snake, random)
+  game.food = spawnFood(game.snake, game.score, random)
   if (!game.food) {
     game.status = 'won'
     return 'won'
