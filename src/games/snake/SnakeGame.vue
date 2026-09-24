@@ -8,6 +8,7 @@ import {
 import type { Direction, GameStatus, Level, Point } from './engine'
 
 const STORAGE_KEY = 'little-break-snake'
+const TOUCH_REPEAT_WINDOW_MS = 80
 const game = reactive(createGame())
 const best = ref(0)
 const level = ref<Level>('normal')
@@ -59,6 +60,7 @@ let observer: ResizeObserver | undefined
 let context: CanvasRenderingContext2D | null = null
 let audioContext: AudioContext | undefined
 let touchStart: { x: number; y: number; pointerId: number } | null = null
+const touchDirectionTimes = new Map<Direction, number>()
 const tones = new Set<{ oscillator: OscillatorNode; gain: GainNode }>()
 
 function formatScore(value: number): string {
@@ -105,6 +107,7 @@ function scheduleTick(): void {
 function startGame(): void {
   clearTimer()
   resetAndStart(game)
+  touchDirectionTimes.clear()
   popping.value = false
   draw()
   playTone('start')
@@ -144,6 +147,7 @@ function pauseGame(focus = true): void {
 function resumeGame(): void {
   if (game.status !== 'paused') return
   game.status = 'running'
+  touchDirectionTimes.clear()
   scheduleTick()
   announcement.value = '游戏继续。'
   focusBoard()
@@ -160,9 +164,11 @@ function activateStart(): void {
   else startGame()
 }
 
-function changeDirection(name: Direction): void {
+function changeDirection(name: Direction, touch = false): void {
   if (game.status === 'ready') startGame()
-  queueTurn(game, name)
+  const now = performance.now()
+  if (touch && now - (touchDirectionTimes.get(name) ?? -Infinity) < TOUCH_REPEAT_WINDOW_MS) return
+  if (queueTurn(game, name) && touch) touchDirectionTimes.set(name, now)
 }
 
 function changeLevel(next: Level): void {
@@ -331,7 +337,7 @@ function onKeyDown(event: KeyboardEvent): void {
 function onDirectionPointer(event: PointerEvent, direction: Direction): void {
   if (!event.isPrimary || event.button !== 0) return
   event.preventDefault()
-  changeDirection(direction)
+  changeDirection(direction, event.pointerType === 'touch')
   if (game.status === 'running') focusBoard()
 }
 
@@ -361,7 +367,7 @@ function onBoardPointerUp(event: PointerEvent): void {
   const dy = event.clientY - touchStart.y
   clearTouch()
   if (Math.max(Math.abs(dx), Math.abs(dy)) < 16) return
-  changeDirection(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up')
+  changeDirection(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up', event.pointerType === 'touch')
 }
 
 function onBlur(): void { pauseGame(false) }

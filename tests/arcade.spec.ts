@@ -233,6 +233,98 @@ test('手机触屏方向和方块按钮可操作', async ({ page, isMobile }) =>
   await page.getByRole('button', { name: '直接落底', exact: true }).tap();
 });
 
+test('贪吃蛇方向按钮至少48px且在棋盘下方独立占位', async ({ page, isMobile }) => {
+  await page.goto('/#/games/snake');
+  const controls = page.getByRole('group', { name: '触屏方向控制', includeHidden: true });
+  if (!isMobile) {
+    await expect(controls).toBeHidden();
+    return;
+  }
+  for (const viewport of [{ width: 393, height: 851 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(viewport);
+    await expect(controls).toBeVisible();
+    await expect(controls.locator('button')).toHaveCount(4);
+    await controls.scrollIntoViewIfNeeded();
+    const area = (await controls.boundingBox())!;
+    const board = (await page.locator('#board').boundingBox())!;
+    const card = (await page.locator('.snake-game .game-card').boundingBox())!;
+    const sidebar = (await page.locator('.snake-game .sidebar').boundingBox())!;
+    expect(area.y).toBeGreaterThanOrEqual(card.y + card.height);
+    expect(area.y).toBeGreaterThanOrEqual(board.y + board.height);
+    expect(sidebar.y).toBeGreaterThanOrEqual(area.y + area.height);
+    for (const button of await controls.locator('button').all()) {
+      const bounds = (await button.boundingBox())!;
+      expect(bounds.width).toBeGreaterThanOrEqual(48);
+      expect(bounds.height).toBeGreaterThanOrEqual(48);
+      expect(bounds.y).toBeGreaterThanOrEqual(0);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+    }
+    await expectNoOverflow(page);
+  }
+});
+
+test('贪吃蛇触摸仅过滤80ms内同方向重复，滑动共享去重且键盘不受限', async ({ page, isMobile }) => {
+  test.skip(!isMobile, '使用真实触摸事件');
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  const game = await page.locator('.snake-game').evaluateHandle(element => {
+    return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+  });
+  const up = page.getByRole('button', { name: '向上', exact: true });
+  const left = page.getByRole('button', { name: '向左', exact: true });
+  const session = await page.context().newCDPSession(page);
+  async function swipeUp(distance = 40) {
+    const bounds = (await page.locator('#board').boundingBox())!;
+    const point = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...point, y: point.y - distance }] });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+  for (const repeat of [() => up.tap(), () => swipeUp()]) {
+    await page.locator('#restart-button').tap();
+    await page.clock.runFor(100);
+    await up.tap();
+    expect(await game.evaluate(state => state.turns)).toEqual(['up']);
+    await page.clock.runFor(30);
+    expect(await game.evaluate(state => state.direction)).toBe('up');
+    await left.tap();
+    await repeat();
+    expect(await game.evaluate(state => state.turns)).toEqual(['left']);
+    await page.clock.runFor(49);
+    await repeat();
+    expect(await game.evaluate(state => state.turns)).toEqual(['left']);
+    await page.clock.runFor(1);
+    await swipeUp(8);
+    expect(await game.evaluate(state => state.turns)).toEqual(['left']);
+    await repeat();
+    expect(await game.evaluate(state => state.turns)).toEqual(['left', 'up']);
+    await page.clock.runFor(210);
+    expect(await game.evaluate(state => ({ direction: state.direction, turns: state.turns }))).toEqual({ direction: 'up', turns: [] });
+  }
+  await page.locator('#restart-button').tap();
+  await page.clock.runFor(100);
+  await up.tap();
+  await page.clock.runFor(30);
+  await left.tap();
+  await page.keyboard.press('ArrowUp');
+  expect(await game.evaluate(state => state.turns)).toEqual(['left', 'up']);
+  await page.locator('#restart-button').tap();
+  await up.tap();
+  expect(await game.evaluate(state => state.turns)).toEqual(['up']);
+  await page.locator('#pause-button').tap();
+  await left.tap();
+  expect(await game.evaluate(state => state.turns)).toEqual(['up']);
+  await page.locator('#start-button').tap();
+  await left.tap();
+  expect(await game.evaluate(state => state.turns)).toEqual(['up', 'left']);
+  await session.detach();
+  expect(errors).toEqual([]);
+});
+
 test('贪吃蛇吃果实、暂停、碰墙结束和重新开始', async ({ page }) => {
   await page.addInitScript(() => { Math.random = () => 0; });
   await page.goto('/#/games/snake');
