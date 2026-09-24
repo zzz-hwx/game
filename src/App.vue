@@ -21,7 +21,8 @@ const pageContent = ref<HTMLDivElement | null>(null);
         </RouterLink>
         <nav class="club-nav" aria-label="游戏导航">
           <RouterLink to="/" :class="{ selected: route.name === 'home' }">游戏大厅</RouterLink>
-          <template v-if="route.name !== 'home'">
+          <RouterLink to="/cloud" class="cloud-nav-link" :class="{ selected: route.name === 'cloud-saves' }">云存档</RouterLink>
+          <template v-if="route.path.startsWith('/games/')">
             <RouterLink v-for="game in games" :key="game.id" :to="`/games/${game.id}`" :class="{ selected: route.name === game.id }">{{ game.name }}</RouterLink>
           </template>
         </nav>

@@ -5,6 +5,7 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'home', component: () => import('../views/HomeView.vue'), meta: { title: '游戏大厅' } },
+    { path: '/cloud', name: 'cloud-saves', component: () => import('../views/CloudSavesView.vue'), meta: { title: '我的云存档' } },
     ...games.map((game) => ({
       path: `/games/${game.id}`,
       name: game.id,

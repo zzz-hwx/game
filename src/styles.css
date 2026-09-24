@@ -107,13 +107,15 @@ button:disabled { cursor: default; }
   .card-bottom { margin-top: 15px; }
 }
 @media (max-width: 760px) {
-  .club-header-inner { min-height: 80px; padding: 15px 22px; gap: 14px; }
+  .club-header-inner { min-height: 80px; padding: 15px 22px; gap: 14px; flex-wrap: wrap; }
+  .club-nav { order: 3; flex-basis: 100%; }
+  .back-home { margin-left: auto; }
   .club-brand { font-size: 16px; gap: 9px; }
   .club-mark { width: 37px; height: 37px; border-radius: 11px; }
   .club-brand small { font-size: 6px; }
   .club-header-note { display: none; }
   .club-nav { gap: 15px; font-size: 11px; }
-  .club-nav a:not(:first-child) { display: none; }
+  .club-nav a:not(:first-child):not(.cloud-nav-link) { display: none; }
   .back-home { padding: 8px 10px; font-size: 10px; }
   .lobby { padding: 0 22px; max-width: 560px; }
   .lobby-hero { padding: 42px 0 33px; position: relative; gap: 0; }
