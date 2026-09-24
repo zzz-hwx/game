@@ -75,10 +75,12 @@ button:disabled { cursor: default; }
 .card-controls { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #66735b; }
 .card-controls svg { width: 15px; height: 15px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .play-link { color: var(--card-color); display: flex; align-items: center; gap: 13px; margin-left: auto; font-size: 11px; font-weight: 600; }
-.play-arrow { display: grid; place-items: center; height: 29px; width: 29px; background: var(--card-background); border-radius: 50%; font-size: 17px; transition: transform .2s; }
+.play-arrow { display: grid; place-items: center; height: 29px; width: 29px; flex-shrink: 0; background: var(--card-background); border-radius: 50%; transition: transform .2s; }
+.play-arrow svg, .note-plus svg { display: block; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .game-card-link:hover .play-arrow { transform: rotate(45deg); }
 .lobby-note { display: flex; align-items: center; gap: 17px; margin-top: 35px; padding: 22px 24px; border: 1px dashed #d6ddc7; border-radius: 10px; background: #f0f2e6; }
-.note-plus { display: grid; place-items: center; width: 35px; height: 35px; border: 1px solid #d7dfc7; border-radius: 10px; font-size: 22px; color: #97a67c; flex-shrink: 0; }
+.note-plus { display: grid; place-items: center; width: 35px; height: 35px; border: 1px solid #d7dfc7; border-radius: 10px; color: #97a67c; flex-shrink: 0; }
+.note-plus svg { width: 22px; height: 22px; }
 .lobby-note h2 { font-size: 11px; font-weight: 500; color: #788869; letter-spacing: .6px; margin: 0 0 7px; }
 .lobby-note p { font-size: 9px; color: #9aa58b; margin: 0; line-height: 1.8; }
 .note-label { font: 7px Consolas, monospace; letter-spacing: 1.2px; color: #a7b097; margin-left: auto; }

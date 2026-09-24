@@ -36,14 +36,14 @@ import { games } from '../games/registry';
             <div class="card-title"><h3>{{ game.name }}</h3><span>{{ game.englishName }}</span></div>
             <p class="card-tagline">{{ game.tagline }}</p>
             <p class="card-description">{{ game.description }}</p>
-            <div class="card-bottom"><span class="card-controls"><SvgIcon viewBox="0 0 24 24" aria-hidden="true" sprite="illustrations" name="card-keyboard" />{{ game.controls }}</span><span class="play-link">开始玩 <span class="play-arrow" aria-hidden="true">↗</span></span></div>
+            <div class="card-bottom"><span class="card-controls"><SvgIcon viewBox="0 0 24 24" aria-hidden="true" sprite="illustrations" name="card-keyboard" />{{ game.controls }}</span><span class="play-link">开始玩 <span class="play-arrow" aria-hidden="true"><SvgIcon name="icon-arrow-up-right" /></span></span></div>
           </div>
         </RouterLink>
       </div>
     </section>
 
     <section class="lobby-note" aria-label="更多小游戏">
-      <span class="note-plus" aria-hidden="true">＋</span>
+      <span class="note-plus" aria-hidden="true"><SvgIcon name="icon-plus" /></span>
       <div><h2>快乐不止这些，下一份惊喜正在路上。</h2><p>更多小游戏，慢慢加入。你的休息时间，值得被认真对待。</p></div>
       <span class="note-label">MORE LITTLE JOYS TO COME</span>
     </section>

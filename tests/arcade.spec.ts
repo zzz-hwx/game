@@ -167,6 +167,30 @@ test('大厅展示全部入口，未知地址返回大厅', async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
+test('大厅箭头和加号使用居中 SVG 而非字体字符', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.play-arrow svg')).toHaveCount(entries.length);
+  await expect(page.locator('.note-plus svg')).toHaveCount(1);
+  await expectSvgAssets(page);
+  for (const [selector, symbol, size] of [['.play-arrow', 'icon-arrow-up-right', 17], ['.note-plus', 'icon-plus', 22]] as const) {
+    for (const container of await page.locator(selector).all()) {
+      await expect(container).toHaveText('');
+      const icon = container.locator('svg');
+      await expect(icon).toHaveAttribute('aria-hidden', 'true');
+      await expect(icon).toHaveAttribute('focusable', 'false');
+      await expect(icon.locator('use')).toHaveAttribute('href', new RegExp(`#${symbol}$`));
+      await expect(icon).toHaveCSS('stroke', await container.evaluate((element) => getComputedStyle(element).color));
+      const outer = (await container.boundingBox())!;
+      const inner = (await icon.boundingBox())!;
+      expect(inner.width).toBe(size);
+      expect(inner.height).toBe(size);
+      expect(Math.abs(inner.x + inner.width / 2 - outer.x - outer.width / 2)).toBeLessThan(1);
+      expect(Math.abs(inner.y + inner.height / 2 - outer.y - outer.height / 2)).toBeLessThan(1);
+    }
+  }
+  await expectNoOverflow(page);
+});
+
 for (const game of entries) {
   test(`大厅${game.name}可进入、返回及刷新`, async ({ page }) => {
     const errors: string[] = [];
