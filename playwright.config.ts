@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
+  outputDir: './.artifacts/playwright/latest',
   fullyParallel: true,
   workers: 2,
   use: {
