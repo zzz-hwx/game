@@ -2,10 +2,11 @@
 import SvgIcon from '../../components/SvgIcon.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
-  CELL, COLS, ROWS, FOOD_EDGE_UNLOCK_SCORE, createGame, directions, levels, parsePreferences, queueTurn,
-  startGame as resetAndStart, tick,
+  CELL, COLS, ROWS, FOOD_EDGE_UNLOCK_SCORE, FOOD_LIFETIME_MS, INITIAL_LIVES, advanceTime, createGame,
+  directions, foodTypes, getMoveDelay, levels, parsePreferences, queueTurn,
+  resumeGame as resumeState, startGame as resetAndStart, tick,
 } from './engine'
-import type { Direction, GameStatus, Level, Point } from './engine'
+import type { Collision, Direction, FoodKind, GameStatus, Level, Point, TickResult } from './engine'
 
 const STORAGE_KEY = 'little-break-snake'
 const TOUCH_REPEAT_WINDOW_MS = 80
@@ -16,16 +17,27 @@ const soundEnabled = ref(false)
 const announcement = ref('')
 const popping = ref(false)
 const scorePopKey = ref(0)
+const scoreGain = ref(0)
 const root = ref<HTMLDivElement | null>(null)
 const board = ref<HTMLDivElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 const startButton = ref<HTMLButtonElement | null>(null)
 const pauseButton = ref<HTMLButtonElement | null>(null)
-const active = computed(() => game.status === 'running' || game.status === 'paused')
+const levelDialog = ref<HTMLDialogElement | null>(null)
+const pendingLevel = ref<Level | null>(null)
+const pendingLevelLabel = computed(() => difficultyOptions.find(option => option.level === pendingLevel.value)?.label)
+const active = computed(() => ['running', 'paused', 'recovering'].includes(game.status))
+const canResume = computed(() => game.status === 'paused' || game.status === 'recovering')
+const currentFood = computed(() => game.food ? foodTypes[game.food.kind] : null)
+const foodSeconds = computed(() => Math.ceil((game.food?.remainingMs ?? 0) / 1000))
+const effectLabel = computed(() => game.effect
+  ? `${game.effect.kind === 'speed' ? '加速中' : '减速中'} · ${Math.ceil(game.effect.remainingMs / 1000)} 秒`
+  : '正常速度')
 const soundLabel = computed(() => soundEnabled.value ? '关闭音效' : '开启音效')
-const speedCaption = computed(() => active.value ? '本局速度已锁定，结束后可调整' : levels[level.value].caption)
+const speedCaption = computed(() => game.status === 'ready' ? levels[level.value].caption : '随时可换难度，确认后按新难度重开')
+const collisionLabels: Record<Collision, string> = { wall: '撞到墙壁', body: '咬到自己', obstacle: '撞到石块' }
 const statusLabels: Record<GameStatus, string> = {
-  ready: '准备就绪', running: '快乐进行中', paused: '休息一下', over: '本局结束', won: '完美通关',
+  ready: '准备就绪', running: '快乐进行中', paused: '休息一下', recovering: '等待续玩', over: '本局结束', won: '完美通关',
 }
 const difficultyOptions: { level: Level; icon: string; label: string }[] = [
   { level: 'easy', icon: 'Ⅰ', label: '悠闲' },
@@ -38,8 +50,13 @@ const mobileDirections: { direction: Direction; label: string; symbol: string }[
   { direction: 'right', label: '向右', symbol: '→' },
 ]
 const overlay = computed(() => {
+  if (game.status === 'recovering') return {
+    title: '还有机会，继续出发！',
+    description: `${game.collision ? collisionLabels[game.collision] : '失去一条生命'} · 剩余 ${game.lives} 条命 · 保留 ${game.score} 分`,
+    button: '继续游戏', eyebrow: 'TAKE A BREATH, TRY AGAIN', hint: '已回到安全起点，按空格键继续',
+  }
   if (game.status === 'paused') return {
-    title: '歇一会儿，没关系。', description: '小蛇在这里等你，准备好再继续。', button: '继续游戏',
+    title: '歇一会儿，没关系。', description: '食物与效果倒计时已暂停，准备好再继续。', button: '继续游戏',
     eyebrow: 'NO RUSH, TAKE YOUR TIME', hint: '按空格键继续',
   }
   if (game.status === 'over' || game.status === 'won') return {
@@ -49,13 +66,16 @@ const overlay = computed(() => {
     hint: '按空格键，快乐重新开始',
   }
   return {
-    title: '准备好，开吃！', description: '没有复杂规则，只有简单快乐。', button: '开始游戏',
+    title: '准备好，开吃！', description: '三条命，五种果实。绕开石块，抓紧开吃。', button: '开始游戏',
     eyebrow: "LET'S TAKE A LITTLE BREAK", hint: '也可以按空格键开始',
   }
 })
 
 let mounted = false
 let timer: ReturnType<typeof setTimeout> | undefined
+let lastTickTime = 0
+let moveRemainingMs = 0
+let resumeAfterLevelChange = false
 let observer: ResizeObserver | undefined
 let context: CanvasRenderingContext2D | null = null
 let audioContext: AudioContext | undefined
@@ -101,7 +121,21 @@ function announceOverlay(focus: boolean): void {
 
 function scheduleTick(): void {
   clearTimer()
-  if (mounted && game.status === 'running') timer = setTimeout(runTick, levels[level.value].delay)
+  if (!mounted || game.status !== 'running') return
+  const delay = Math.min(moveRemainingMs, game.food?.remainingMs ?? Infinity, game.effect?.remainingMs ?? Infinity)
+  timer = setTimeout(runTick, Math.max(1, Math.ceil(delay)))
+}
+
+function updateClock(): GameStatus {
+  const now = performance.now()
+  const elapsed = now - lastTickTime
+  lastTickTime = now
+  const previousDelay = getMoveDelay(game, level.value)
+  advanceTime(game, elapsed)
+  moveRemainingMs -= elapsed
+  // Preserve progress within a move when a timed speed effect expires.
+  moveRemainingMs *= getMoveDelay(game, level.value) / previousDelay
+  return game.status
 }
 
 function startGame(): void {
@@ -109,18 +143,28 @@ function startGame(): void {
   resetAndStart(game)
   touchDirectionTimes.clear()
   popping.value = false
+  moveRemainingMs = getMoveDelay(game, level.value)
+  lastTickTime = performance.now()
   draw()
   playTone('start')
   scheduleTick()
-  announcement.value = '游戏开始。方向键或 WASD 控制移动，空格键暂停。'
+  announcement.value = '游戏开始，共三条生命。方向键或 WASD 控制移动，空格键暂停。'
   focusBoard()
 }
 
 function runTick(): void {
   timer = undefined
-  const result = tick(game)
-  if (result === 'idle') return
-  if (result === 'ate' || result === 'won') {
+  if (game.status !== 'running') return
+  const status = updateClock()
+  const previousScore = game.score
+  const eatenKind = game.food?.kind
+  let result: TickResult = status === 'won' ? 'won' : 'idle'
+  if (status === 'running' && moveRemainingMs <= 0) {
+    result = tick(game)
+    moveRemainingMs = getMoveDelay(game, level.value)
+  }
+  if (game.score > previousScore) {
+    scoreGain.value = game.score - previousScore
     if (game.score > best.value) {
       best.value = game.score
       savePreferences()
@@ -128,11 +172,13 @@ function runTick(): void {
     scorePopKey.value++
     popping.value = true
     playTone('eat')
+    announcement.value = `${eatenKind ? foodTypes[eatenKind].label : '果实'}，加 ${scoreGain.value} 分。${effectLabel.value}。`
   }
   draw()
-  if (result === 'over' || result === 'won') {
+  if (result === 'over' || result === 'won' || result === 'life-lost') {
     clearTimer()
-    if (result === 'over') playTone('over')
+    if (result !== 'won') playTone('over')
+    if (result === 'life-lost') touchDirectionTimes.clear()
     announceOverlay(document.activeElement === board.value || document.activeElement === pauseButton.value)
   } else scheduleTick()
 }
@@ -140,27 +186,30 @@ function runTick(): void {
 function pauseGame(focus = true): void {
   if (game.status !== 'running') return
   clearTimer()
-  game.status = 'paused'
+  updateClock()
+  if (game.status === 'running') game.status = 'paused'
+  draw()
   announceOverlay(focus)
 }
 
 function resumeGame(): void {
-  if (game.status !== 'paused') return
-  game.status = 'running'
+  if (!canResume.value) return
+  resumeState(game)
+  lastTickTime = performance.now()
   touchDirectionTimes.clear()
   scheduleTick()
-  announcement.value = '游戏继续。'
+  announcement.value = `游戏继续，剩余 ${game.lives} 条生命。`
   focusBoard()
 }
 
 function togglePause(): void {
   if (game.status === 'running') pauseGame()
-  else if (game.status === 'paused') resumeGame()
+  else if (canResume.value) resumeGame()
   else startGame()
 }
 
 function activateStart(): void {
-  if (game.status === 'paused') resumeGame()
+  if (canResume.value) resumeGame()
   else startGame()
 }
 
@@ -172,9 +221,35 @@ function changeDirection(name: Direction, touch = false): void {
 }
 
 function changeLevel(next: Level): void {
-  if (active.value) return
-  level.value = next
-  savePreferences()
+  if (next === level.value || pendingLevel.value) return
+  if (game.status === 'ready') {
+    level.value = next
+    savePreferences()
+    return
+  }
+  resumeAfterLevelChange = game.status === 'running'
+  pauseGame(false)
+  clearTouch()
+  pendingLevel.value = next
+  void nextTick(() => {
+    if (!mounted || !pendingLevel.value || !levelDialog.value) return
+    levelDialog.value.returnValue = ''
+    levelDialog.value.showModal()
+  })
+}
+
+function onLevelDialogClosed(): void {
+  const next = pendingLevel.value
+  const shouldResume = resumeAfterLevelChange
+  pendingLevel.value = null
+  resumeAfterLevelChange = false
+  if (!mounted || !next) return
+  if (levelDialog.value?.returnValue === 'confirm') {
+    level.value = next
+    savePreferences()
+    startGame()
+  } else if (shouldResume && !document.hidden) resumeGame()
+  if (game.status === 'running') board.value?.scrollIntoView({ block: 'center' })
 }
 
 function toggleSound(): void {
@@ -221,14 +296,24 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.fill()
 }
 
-function drawFood(ctx: CanvasRenderingContext2D, position: Point): void {
+function drawFood(ctx: CanvasRenderingContext2D, position: Point, kind: FoodKind = 'apple', remainingMs = FOOD_LIFETIME_MS): void {
   const x = position.x * CELL
   const y = position.y * CELL
-  ctx.fillStyle = '#c8795630'
+  const style = foodTypes[kind]
+  ctx.strokeStyle = remainingMs <= 3000 ? '#a44e39' : `${style.color}70`
+  ctx.lineWidth = 1.5
   ctx.beginPath()
-  ctx.arc(x + CELL / 2, y + CELL / 2, 14, 0, Math.PI * 2)
-  ctx.fill()
-  roundedRect(ctx, x + 4, y + 5, CELL - 8, CELL - 7, 6, '#cc7b5e')
+  ctx.arc(x + CELL / 2, y + CELL / 2, 11.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remainingMs / FOOD_LIFETIME_MS)
+  ctx.stroke()
+  roundedRect(ctx, x + 4, y + 5, CELL - 8, CELL - 7, kind === 'golden' ? 2 : 6, style.color)
+  if (kind !== 'apple') {
+    ctx.fillStyle = '#fffdf4'
+    ctx.font = 'bold 14px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(style.symbol, x + CELL / 2, y + CELL / 2 + 1)
+    return
+  }
   roundedRect(ctx, x + 7, y + 7, 4, 5, 2, '#e9b59a')
   ctx.strokeStyle = '#6c8b4c'
   ctx.lineWidth = 2
@@ -283,6 +368,10 @@ function draw(): void {
   for (let x = 0; x <= COLS; x++) { ctx.moveTo(x * CELL, 0); ctx.lineTo(x * CELL, height) }
   for (let y = 0; y <= ROWS; y++) { ctx.moveTo(0, y * CELL); ctx.lineTo(width, y * CELL) }
   ctx.stroke()
+  for (const stone of game.obstacles) {
+    roundedRect(ctx, stone.x * CELL + 2, stone.y * CELL + 2, CELL - 4, CELL - 4, 4, '#6f796b')
+    roundedRect(ctx, stone.x * CELL + 5, stone.y * CELL + 5, CELL - 10, 4, 2, '#a6ae98')
+  }
   if (game.status === 'ready') {
     ctx.globalAlpha = 0.2
     const decorations = [
@@ -295,7 +384,7 @@ function draw(): void {
     ctx.globalAlpha = 1
     return
   }
-  if (game.food) drawFood(ctx, game.food)
+  if (game.food) drawFood(ctx, game.food, game.food.kind, game.food.remainingMs)
   drawSnake(ctx, game.snake, directions[game.direction])
 }
 
@@ -315,6 +404,7 @@ const keyDirections: Readonly<Record<string, Direction>> = {
 }
 
 function onKeyDown(event: KeyboardEvent): void {
+  if (pendingLevel.value || event.defaultPrevented) return
   const target = event.target instanceof Element ? event.target : null
   if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing
     || target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return
@@ -370,8 +460,11 @@ function onBoardPointerUp(event: PointerEvent): void {
   changeDirection(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up', event.pointerType === 'touch')
 }
 
-function onBlur(): void { pauseGame(false) }
-function onVisibilityChange(): void { if (document.hidden) pauseGame(false) }
+function onBlur(): void {
+  resumeAfterLevelChange = false
+  pauseGame(false)
+}
+function onVisibilityChange(): void { if (document.hidden) onBlur() }
 
 onMounted(() => {
   mounted = true
@@ -396,6 +489,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   mounted = false
+  levelDialog.value?.close()
   clearTimer()
   clearTouch()
   observer?.disconnect()
@@ -437,6 +531,22 @@ onBeforeUnmount(() => {
             <div class="score-best"><SvgIcon class="icon" aria-hidden="true" name="icon-cup" /><div><span class="score-label">最高纪录</span><span id="best-score" class="best-value">{{ formatScore(best) }}</span></div></div>
             <div id="game-status" class="game-status" :data-state="game.status"><span></span><span id="status-text">{{ statusLabels[game.status] }}</span></div>
           </div>
+          <div class="run-info" role="group" aria-label="本局状态">
+            <div id="lives" class="lives" :aria-label="`剩余 ${game.lives} 条生命`">
+              <span>生命</span><span class="life-dots" aria-hidden="true"><i v-for="life in INITIAL_LIVES" :key="life" :class="{ lost: life > game.lives }"></i></span><strong>{{ game.lives }}/{{ INITIAL_LIVES }}</strong>
+            </div>
+            <span id="snake-length">长度 {{ game.snake.length }}</span>
+            <span id="effect-status" :data-effect="game.effect?.kind ?? 'none'">{{ effectLabel }}</span>
+          </div>
+          <div class="food-status" :class="{ urgent: foodSeconds <= 3 && game.food }">
+            <template v-if="currentFood && game.food">
+              <span class="food-symbol" :style="{ background: currentFood.color }" aria-hidden="true">{{ currentFood.symbol }}</span>
+              <span id="current-food">{{ currentFood.label }} <strong>+{{ currentFood.points }}</strong></span>
+              <span id="food-timer">{{ foodSeconds }} 秒后刷新</span>
+              <progress :value="game.food.remainingMs" :max="FOOD_LIFETIME_MS" aria-label="食物剩余时间"></progress>
+            </template>
+            <span v-else>所有空格都吃完啦</span>
+          </div>
           <div class="board-frame">
             <div id="board" ref="board" class="board" tabindex="0" role="group" aria-label="贪吃蛇棋盘" aria-describedby="game-controls-help"
               @pointerdown="onBoardPointerDown" @pointerup="onBoardPointerUp" @pointercancel="clearTouch" @lostpointercapture="clearTouch">
@@ -452,13 +562,13 @@ onBeforeUnmount(() => {
                   <span id="overlay-hint" class="overlay-hint">{{ overlay.hint }}</span>
                 </div>
               </div>
-              <div id="count-pop" :key="scorePopKey" class="count-pop" :class="{ pop: popping }" aria-hidden="true" @animationend="popping = false">+10</div>
+              <div id="count-pop" :key="scorePopKey" class="count-pop" :class="{ pop: popping }" aria-hidden="true" @animationend="popping = false">+{{ scoreGain }}</div>
             </div>
           </div>
           <div class="game-toolbar">
             <div class="toolbar-hint"><SvgIcon class="icon" aria-hidden="true" name="icon-keyboard" /><span>方向键移动 <span class="hint-divider">·</span> 空格键暂停</span></div>
             <div class="toolbar-actions">
-              <button id="pause-button" ref="pauseButton" type="button" class="tool-button" :aria-label="game.status === 'paused' ? '继续游戏' : '暂停游戏'" title="暂停 / 继续（空格键）" :disabled="!active" @click="togglePause"><SvgIcon class="icon" aria-hidden="true" :name="game.status === 'paused' ? 'icon-play' : 'icon-pause'" /></button>
+              <button id="pause-button" ref="pauseButton" type="button" class="tool-button" :aria-label="canResume ? '继续游戏' : '暂停游戏'" title="暂停 / 继续（空格键）" :disabled="!active" @click="togglePause"><SvgIcon class="icon" aria-hidden="true" :name="canResume ? 'icon-play' : 'icon-pause'" /></button>
               <button id="restart-button" type="button" class="tool-button" aria-label="重新开始" title="重新开始" @click="startGame"><SvgIcon class="icon" aria-hidden="true" name="icon-restart" /></button>
               <span class="toolbar-divider"></span>
               <button id="sound-button" type="button" class="tool-button" :aria-label="soundLabel" :title="soundLabel" :aria-pressed="soundEnabled" @click="toggleSound"><SvgIcon class="icon" aria-hidden="true" :name="soundEnabled ? 'icon-sound' : 'icon-mute'" /></button>
@@ -477,16 +587,25 @@ onBeforeUnmount(() => {
             <div class="section-heading"><h2>你的游戏，你的节奏</h2><span>01</span></div>
             <p class="section-description">选一个舒服的速度，出发吧。</p>
             <div class="difficulty-options" role="group" aria-label="游戏难度">
-              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" :disabled="active" @click="changeLevel(option.level)"><span class="level-icon">{{ option.icon }}</span><span>{{ option.label }}</span></button>
+              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" @click="changeLevel(option.level)"><span class="level-icon">{{ option.icon }}</span><span>{{ option.label }}</span></button>
             </div>
             <div class="speed-caption"><span class="small-dot"></span><span id="speed-caption">{{ speedCaption }}</span></div>
             <div class="card-divider"></div>
             <div class="section-heading"><h2>简单三步，快乐加倍</h2><SvgIcon class="icon muted" aria-hidden="true" name="icon-arrow" /></div>
             <ol id="game-controls-help" class="instructions">
               <li><span class="step-number">1</span><div><strong>控制方向</strong><p>方向键或 WASD，带小蛇去探索。</p></div></li>
-              <li><span class="step-number">2</span><div><strong>吃掉小红果</strong><p>每吃一颗 +10 分，也会长大一格。</p><p>未满 {{ FOOD_EDGE_UNLOCK_SCORE }} 分只在中央刷新，达到后墙边、角落也会出现。</p></div></li>
-              <li><span class="step-number">3</span><div><strong>记得留条退路</strong><p>别撞到墙壁，也别咬到自己。</p></div></li>
+              <li><span class="step-number">2</span><div><strong>认准果实，及时开吃</strong><p>果实 {{ FOOD_LIFETIME_MS / 1000 }} 秒后消失并刷新，暂停时停止计时。</p><p>未满 {{ FOOD_EDGE_UNLOCK_SCORE }} 分只在中央刷新，达到后墙边、角落也会出现；中央放满时提前开放全图。</p></div></li>
+              <li><span class="step-number">3</span><div><strong>绕开石块，珍惜生命</strong><p>每局 {{ INITIAL_LIVES }} 条命，撞墙、撞灰色石块或自己都会扣 1 条。归零才结束；续玩保留分数，蛇回到起点，清除变速效果。</p></div></li>
             </ol>
+            <div class="card-divider"></div>
+            <div class="section-heading"><h2>果实图鉴</h2><span>05</span></div>
+            <ul class="food-guide" aria-label="食物种类与效果">
+              <li v-for="(food, kind) in foodTypes" :key="kind" :data-food="kind">
+                <span class="food-symbol" :style="{ background: food.color }" aria-hidden="true">{{ food.symbol }}</span>
+                <div><strong>{{ food.label }} <span>+{{ food.points }}</span></strong><p>{{ food.description }}</p></div>
+              </li>
+            </ul>
+            <p class="effect-help">加速与减速不叠加，以最后吃到的为准，持续 6 秒。</p>
             <div class="keyboard-guide" aria-hidden="true"><div class="key-row"><kbd>↑</kbd></div><div class="key-row"><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div><span>或 W / A / S / D</span></div>
           </section>
           <section class="break-card">
@@ -500,6 +619,14 @@ onBeforeUnmount(() => {
 
       <footer><span><span class="footer-dot"></span> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <span class="footer-star">＋</span></span></footer>
     </main>
+    <dialog id="level-dialog" ref="levelDialog" class="level-dialog" aria-labelledby="level-dialog-title" aria-describedby="level-dialog-description" @close="onLevelDialogClosed" @cancel.prevent="levelDialog?.close()">
+      <h2 id="level-dialog-title">切换为「{{ pendingLevelLabel }}」难度？</h2>
+      <p id="level-dialog-description">确认后会按新难度重新开局，当前得分、蛇身、生命和食物效果将重置，最高纪录保留。</p>
+      <div class="level-dialog-actions">
+        <button id="level-cancel" type="button" class="secondary-button" autofocus @click="levelDialog?.close()">取消切换</button>
+        <button id="level-confirm" type="button" class="primary-button" @click="levelDialog?.close('confirm')">确认并重开</button>
+      </div>
+    </dialog>
     <div id="announcement" class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
   </div>
 </template>

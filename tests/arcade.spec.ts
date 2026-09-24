@@ -221,7 +221,8 @@ test('手机触屏方向和方块按钮可操作', async ({ page, isMobile }) =>
   await page.clock.install();
   await page.getByRole('button', { name: '向上', exact: true }).tap();
   await page.clock.runFor(1700);
-  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'over');
+  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'recovering');
+  await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 2 条生命');
   await expect(page.locator('#score')).toHaveText('00');
   await page.getByRole('link', { name: '返回大厅' }).click();
   await page.getByRole('link', { name: '开始玩俄罗斯方块', exact: true }).click();
@@ -325,7 +326,7 @@ test('贪吃蛇触摸仅过滤80ms内同方向重复，滑动共享去重且键�
   expect(errors).toEqual([]);
 });
 
-test('贪吃蛇吃果实、暂停、碰墙结束和重新开始', async ({ page }) => {
+test('贪吃蛇吃果实、暂停、三次碰墙结束和重新开始', async ({ page }) => {
   await page.addInitScript(() => { Math.random = () => 0; });
   await page.goto('/#/games/snake');
   await expect(page.locator('#start-button')).toBeVisible();
@@ -340,9 +341,21 @@ test('贪吃蛇吃果实、暂停、碰墙结束和重新开始', async ({ page 
   await expect(page.locator('#score')).toHaveText('10');
   await page.locator('#start-button').click();
   await page.clock.runFor(2000);
+  for (const lives of [2, 1]) {
+    await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'recovering');
+    await expect(page.locator('#lives')).toHaveAttribute('aria-label', `剩余 ${lives} 条生命`);
+    await expect(page.locator('#overlay-description')).toContainText('撞到墙壁');
+    await expect(page.locator('#score')).toHaveText('10');
+    await page.clock.runFor(15000);
+    await expect(page.locator('#lives')).toHaveAttribute('aria-label', `剩余 ${lives} 条生命`);
+    await page.locator('#start-button').click();
+    await page.clock.runFor(2600);
+  }
   await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'over');
+  await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 0 条生命');
   await page.locator('#start-button').click();
   await expect(page.locator('#score')).toHaveText('00');
+  await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 3 条生命');
   await page.getByRole('link', { name: '返回大厅' }).click();
   await page.clock.runFor(5000);
   await expect(page.locator('.lobby')).toBeVisible();
@@ -350,6 +363,336 @@ test('贪吃蛇吃果实、暂停、碰墙结束和重新开始', async ({ page 
   await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'ready');
   await expect(page.locator('#best-score')).toHaveText('10');
 });
+
+test('贪吃蛇随时切换难度：取消保留进度、确认重开并保存新速度', async ({ page, isMobile }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  if (isMobile) await page.setViewportSize({ width: 320, height: 568 });
+  await page.addInitScript(() => { Math.random = () => 0; });
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await page.locator('[data-level="easy"]').click();
+  await expect(page.locator('#level-dialog')).not.toBeVisible();
+  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'ready');
+  await page.locator('[data-level="normal"]').click();
+  await page.locator('#start-button').click();
+  await page.clock.runFor(1430);
+  const game = await page.locator('.snake-game').evaluateHandle(element => {
+    return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+  });
+  const beforeSameLevel = await game.jsonValue();
+  await page.locator('[data-level="normal"]').click();
+  await expect(page.locator('#level-dialog')).not.toBeVisible();
+  expect(await game.jsonValue()).toEqual(beforeSameLevel);
+  await page.clock.runFor(65);
+  await page.locator('[data-level="hard"]').click();
+  const dialog = page.getByRole('dialog', { name: '切换为「挑战」难度？' });
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('#level-cancel')).toBeFocused();
+  await expect(page.locator('[data-level="normal"]')).toHaveAttribute('aria-pressed', 'true');
+  const paused = await game.jsonValue();
+  expect(paused.status).toBe('paused');
+  expect(paused.score).toBe(10);
+  await page.clock.runFor(20000);
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#level-confirm')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('#level-cancel')).toBeFocused();
+  expect(await game.jsonValue()).toEqual(paused);
+  const bounds = (await dialog.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator('#board')).toBeFocused();
+  await expect(page.locator('#board')).toBeInViewport({ ratio: 1 });
+  expect(await game.jsonValue()).toEqual({ ...paused, status: 'running' });
+  await page.clock.runFor(64);
+  expect(await game.evaluate(state => state.snake[0])).toEqual(paused.snake[0]);
+  await page.clock.runFor(1);
+  expect(await game.evaluate(state => state.snake[0])).not.toEqual(paused.snake[0]);
+  for (const [next, delay] of [['hard', 80], ['easy', 190], ['normal', 130]] as const) {
+    await page.locator(`[data-level="${next}"]`).click();
+    await expect(page.locator('#level-dialog')).toBeVisible();
+    await page.locator('#level-confirm').click();
+    await expect(page.locator('#level-dialog')).not.toBeVisible();
+    await expect(page.locator('#board')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator(`[data-level="${next}"]`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#score')).toHaveText('00');
+    await expect(page.locator('#best-score')).toHaveText('10');
+    await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 3 条生命');
+    await expect(page.locator('#effect-status')).toHaveText('正常速度');
+    expect(await game.evaluate(state => state.food?.remainingMs)).toBe(10000);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('little-break-snake')!).level)).toBe(next);
+    await page.clock.runFor(delay - 1);
+    expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 8, y: 11 });
+    await page.clock.runFor(1);
+    expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 9, y: 11 });
+    const current = await game.jsonValue();
+    await page.locator(`[data-level="${next === 'hard' ? 'normal' : 'hard'}"]`).click();
+    await expect(page.locator('#level-dialog')).toBeVisible();
+    await page.locator('#level-cancel').click();
+    await expect(page.locator('#level-dialog')).not.toBeVisible();
+    expect(await game.jsonValue()).toEqual(current);
+  }
+  await expectNoOverflow(page);
+  expect(errors).toEqual([]);
+});
+
+for (const status of ['paused', 'recovering'] as const) {
+  test(`贪吃蛇在${status}时切换难度，取消不改变原状态`, async ({ page }) => {
+    await page.addInitScript(() => { Math.random = () => 0; });
+    await page.goto('/#/games/snake');
+    await expect(page.locator('#start-button')).toBeVisible();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await page.locator('[data-level="normal"]').click();
+    await page.locator('#start-button').click();
+    await page.clock.runFor(1300);
+    if (status === 'paused') await page.locator('#pause-button').click();
+    else await page.clock.runFor(1300);
+    await expect(page.locator('#game-status')).toHaveAttribute('data-state', status);
+    const game = await page.locator('.snake-game').evaluateHandle(element => {
+      return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+    });
+    const before = await game.jsonValue();
+    await page.locator('[data-level="hard"]').click();
+    await expect(page.locator('#level-dialog')).toBeVisible();
+    await page.clock.runFor(15000);
+    await page.locator('#level-cancel').click();
+    await expect(page.locator('#level-dialog')).not.toBeVisible();
+    expect(await game.jsonValue()).toEqual(before);
+    await page.locator('[data-level="hard"]').click();
+    await page.locator('#level-confirm').click();
+    await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'running');
+    await expect(page.locator('#score')).toHaveText('00');
+    await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 3 条生命');
+    await expect(page.locator('#best-score')).toHaveText('10');
+    expect(await game.evaluate(state => state.collision)).toBeNull();
+  });
+}
+
+test('贪吃蛇难度弹窗中失焦或离开页面不会意外续玩', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await page.locator('#start-button').click();
+  await page.locator('[data-level="hard"]').click();
+  await expect(page.locator('#level-dialog')).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.locator('#level-cancel').click();
+  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'paused');
+  await page.locator('#start-button').click();
+  await page.locator('[data-level="hard"]').click();
+  await expect(page.locator('#level-dialog')).toBeVisible();
+  await page.evaluate(() => { location.hash = '/'; });
+  await expect(page.locator('.lobby')).toBeVisible();
+  await page.clock.runFor(15000);
+  await expect(page.locator('#level-dialog')).toHaveCount(0);
+  await page.getByRole('link', { name: '开始玩贪吃蛇', exact: true }).click();
+  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('[data-level="normal"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(errors).toEqual([]);
+});
+
+test('贪吃蛇固定障碍扣命、安全续玩并在重开后保留地图', async ({ page, isMobile }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  if (isMobile) await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  const game = await page.locator('.snake-game').evaluateHandle(element => {
+    return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+  });
+  const obstacles = await game.evaluate(state => state.obstacles);
+  expect(obstacles).toHaveLength(16);
+  await page.locator('#start-button').click();
+  await page.clock.runFor(130);
+  const stonePixel = await page.locator('#game-canvas').evaluate((canvas: HTMLCanvasElement) => {
+    return [...canvas.getContext('2d')!.getImageData(Math.floor(canvas.width * 6.5 / 28), Math.floor(canvas.height * 6.5 / 22), 1, 1).data];
+  });
+  expect(stonePixel).toEqual([111, 121, 107, 255]);
+  await page.keyboard.press('ArrowUp');
+  await page.clock.runFor(650);
+  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'recovering');
+  await expect(page.locator('#overlay-description')).toContainText('撞到石块');
+  const overlayBounds = (await page.locator('#overlay').boundingBox())!;
+  const contentBounds = (await page.locator('.overlay-content').boundingBox())!;
+  expect(contentBounds.y).toBeGreaterThanOrEqual(overlayBounds.y);
+  expect(contentBounds.y + contentBounds.height).toBeLessThanOrEqual(overlayBounds.y + overlayBounds.height);
+  expect(contentBounds.x).toBeGreaterThanOrEqual(overlayBounds.x);
+  expect(contentBounds.x + contentBounds.width).toBeLessThanOrEqual(overlayBounds.x + overlayBounds.width);
+  await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 2 条生命');
+  await expect(page.locator('[data-level="hard"]')).toBeEnabled();
+  expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 8, y: 11 });
+  const stopped = await game.jsonValue();
+  await page.clock.runFor(15000);
+  expect(await game.jsonValue()).toEqual(stopped);
+  await page.keyboard.press('Space');
+  await page.clock.runFor(130);
+  await expect(page.locator('#game-status')).toHaveAttribute('data-state', 'running');
+  expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 9, y: 11 });
+  await page.locator('#restart-button').click();
+  expect(await game.evaluate(state => state.obstacles)).toEqual(obstacles);
+  await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 3 条生命');
+  await expectNoOverflow(page);
+  expect(errors).toEqual([]);
+});
+
+test('贪吃蛇五种食物显示分值、变速与缩身效果', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await expect(page.locator('.food-guide li')).toHaveCount(5);
+  const game = await page.locator('.snake-game').evaluateHandle(element => {
+    return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+  });
+  const cases = [
+    { kind: 'apple', points: 10, length: 5, delay: 130 },
+    { kind: 'golden', points: 30, length: 5, delay: 130 },
+    { kind: 'speed', points: 20, length: 5, delay: 91 },
+    { kind: 'slow', points: 15, length: 5, delay: 182 },
+    { kind: 'shrink', points: 25, length: 3, delay: 130 },
+  ] as const;
+  for (const food of cases) {
+    await page.locator('#restart-button').click();
+    await game.evaluate((state, kind) => {
+      state.food = { x: 10, y: 11, kind, remainingMs: 10000 };
+    }, food.kind);
+    await page.clock.runFor(130);
+    await expect(page.locator('#current-food')).toContainText(`+${food.points}`);
+    const foodPixel = await page.locator('#game-canvas').evaluate((canvas: HTMLCanvasElement) => {
+      return [...canvas.getContext('2d')!.getImageData(Math.floor(canvas.width * (10 + 5.5 / 25) / 28), Math.floor(canvas.height * (11 + 12.5 / 25) / 22), 1, 1).data];
+    });
+    expect(foodPixel[3]).toBe(255);
+    expect(foodPixel.slice(0, 3)).not.toEqual([234, 240, 216]);
+    await page.clock.runFor(130);
+    await expect(page.locator('#score')).toHaveText(String(food.points));
+    await expect(page.locator('#count-pop')).toHaveText(`+${food.points}`);
+    await expect(page.locator('#snake-length')).toHaveText(`长度 ${food.length}`);
+    await expect(page.locator('#effect-status')).toHaveAttribute('data-effect', ['speed', 'slow'].includes(food.kind) ? food.kind : 'none');
+    await page.clock.runFor(food.delay - 1);
+    expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 10, y: 11 });
+    await page.clock.runFor(1);
+    expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 11, y: 11 });
+  }
+  await expect(page.locator('#best-score')).toHaveText('30');
+  await page.locator('#restart-button').click();
+  await expect(page.locator('#score')).toHaveText('00');
+  await expect(page.locator('#snake-length')).toHaveText('长度 4');
+  await expect(page.locator('#effect-status')).toHaveText('正常速度');
+  await expect(page.locator('#food-timer')).toHaveText('10 秒后刷新');
+  expect(errors).toEqual([]);
+});
+
+test('贪吃蛇食物十秒刷新且暂停保留剩余时间与移动进度', async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 0; });
+  await page.goto('/#/games/snake');
+  await expect(page.locator('#start-button')).toBeVisible();
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  await page.locator('#start-button').click();
+  const game = await page.locator('.snake-game').evaluateHandle(element => {
+    return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+  });
+  await game.evaluate(state => {
+    state.snake = [{ x: 11, y: 9 }, { x: 10, y: 9 }, { x: 9, y: 9 }, { x: 8, y: 9 }];
+    state.food = { x: 3, y: 3, kind: 'golden', remainingMs: 10000 };
+  });
+  await page.clock.runFor(65);
+  await page.locator('#pause-button').click();
+  const paused = await game.jsonValue();
+  expect(paused.food?.remainingMs).toBe(9935);
+  await page.clock.runFor(20000);
+  expect(await game.jsonValue()).toEqual(paused);
+  await page.locator('#start-button').click();
+  await page.clock.runFor(64);
+  expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 11, y: 9 });
+  await page.clock.runFor(1);
+  expect(await game.evaluate(state => state.snake[0])).toEqual({ x: 12, y: 9 });
+  for (let step = 1; step < 76; step++) {
+    const head = await game.evaluate(state => state.snake[0]);
+    if (head.x === 16 && head.y === 9) await page.keyboard.press('ArrowDown');
+    if (head.x === 16 && head.y === 13) await page.keyboard.press('ArrowLeft');
+    if (head.x === 11 && head.y === 13) await page.keyboard.press('ArrowUp');
+    if (head.x === 11 && head.y === 9) await page.keyboard.press('ArrowRight');
+    await page.clock.runFor(130);
+  }
+  await expect(page.locator('#food-timer')).toHaveText('1 秒后刷新');
+  await expect(page.locator('.food-status')).toHaveClass(/urgent/);
+  await page.clock.runFor(119);
+  expect(await game.evaluate(state => state.food?.kind)).toBe('golden');
+  const before = await game.evaluate(state => state.snake[0]);
+  await page.clock.runFor(1);
+  expect(await game.evaluate(state => state.food)).toEqual({ x: 4, y: 3, kind: 'apple', remainingMs: 10000 });
+  expect(await game.evaluate(state => state.snake[0])).toEqual(before);
+  await expect(page.locator('#food-timer')).toHaveText('10 秒后刷新');
+  await expect(page.locator('#score')).toHaveText('00');
+  await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 3 条生命');
+});
+
+for (const kind of ['speed', 'slow'] as const) {
+  test(`贪吃蛇${kind}效果暂停冻结、六秒到期恢复基础速度`, async ({ page }) => {
+    await page.goto('/#/games/snake');
+    await expect(page.locator('#start-button')).toBeVisible();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await page.locator('#start-button').click();
+    const game = await page.locator('.snake-game').evaluateHandle(element => {
+      return (element as HTMLElement & { __vueParentComponent: { setupState: { game: SnakeState } } }).__vueParentComponent.setupState.game;
+    });
+    await game.evaluate((state, kind) => {
+      state.snake = [{ x: 11, y: 9 }, { x: 10, y: 9 }, { x: 9, y: 9 }, { x: 8, y: 9 }];
+      state.food = { x: 12, y: 9, kind, remainingMs: 10000 };
+    }, kind);
+    await page.clock.runFor(130);
+    expect(await game.evaluate(state => state.effect)).toEqual({ kind, remainingMs: 6000 });
+    await game.evaluate(state => { state.food = { x: 3, y: 3, kind: 'apple', remainingMs: 10000 }; });
+    await page.locator('#pause-button').click();
+    const paused = await game.jsonValue();
+    await page.clock.runFor(20000);
+    expect(await game.jsonValue()).toEqual(paused);
+    await page.locator('#start-button').click();
+    const delay = kind === 'speed' ? 91 : 182;
+    const steps = Math.floor(6000 / delay);
+    for (let step = 0; step < steps; step++) {
+      const head = await game.evaluate(state => state.snake[0]);
+      if (head.x === 16 && head.y === 9) await page.keyboard.press('ArrowDown');
+      if (head.x === 16 && head.y === 13) await page.keyboard.press('ArrowLeft');
+      if (head.x === 11 && head.y === 13) await page.keyboard.press('ArrowUp');
+      if (head.x === 11 && head.y === 9) await page.keyboard.press('ArrowRight');
+      await page.clock.runFor(delay);
+    }
+    await page.clock.runFor(6000 - steps * delay - 1);
+    await expect(page.locator('#effect-status')).toHaveAttribute('data-effect', kind);
+    const before = await game.evaluate(state => state.snake[0]);
+    await page.clock.runFor(1);
+    await expect(page.locator('#effect-status')).toHaveText('正常速度');
+    expect(await game.evaluate(state => state.effect)).toBeNull();
+    expect(await game.evaluate(state => state.snake[0])).toEqual(before);
+    const remaining = Math.ceil((delay - (6000 - steps * delay)) * 130 / delay);
+    await page.clock.runFor(remaining - 1);
+    expect(await game.evaluate(state => state.snake[0])).toEqual(before);
+    await page.clock.runFor(1);
+    expect(await game.evaluate(state => state.snake[0])).not.toEqual(before);
+    await expect(page.locator('#lives')).toHaveAttribute('aria-label', '剩余 3 条生命');
+  });
+}
 
 test('贪吃蛇低分中央刷新、达到100分开放角落、重开恢复避让', async ({ page }) => {
   const errors: string[] = [];
@@ -366,15 +709,15 @@ test('贪吃蛇低分中央刷新、达到100分开放角落、重开恢复避�
   });
   await page.clock.runFor(1300);
   await expect(page.locator('#score')).toHaveText('10');
-  expect(await game.evaluate(state => state.food)).toEqual({ x: 3, y: 3 });
+  expect(await game.evaluate(state => state.food)).toMatchObject({ x: 3, y: 3, kind: 'apple' });
   await game.evaluate(state => {
     state.score = 90;
     state.snake = Array.from({ length: 13 }, (_, index) => ({ x: 17 - index, y: 11 }));
-    state.food = { x: 18, y: 11 };
+    state.food = { x: 18, y: 11, kind: 'apple', remainingMs: 10000 };
   });
   await page.clock.runFor(130);
   await expect(page.locator('#score')).toHaveText('100');
-  expect(await game.evaluate(state => state.food)).toEqual({ x: 0, y: 0 });
+  expect(await game.evaluate(state => state.food)).toMatchObject({ x: 0, y: 0, kind: 'apple' });
   const foodPixel = await page.locator('#game-canvas').evaluate((canvas: HTMLCanvasElement) => {
     return [...canvas.getContext('2d')!.getImageData(Math.floor(canvas.width * 0.5 / 28), Math.floor(canvas.height * 0.5 / 22), 1, 1).data];
   });
@@ -384,7 +727,7 @@ test('贪吃蛇低分中央刷新、达到100分开放角落、重开恢复避�
   await expect(page.locator('#best-score')).toHaveText('100');
   await page.clock.runFor(1300);
   await expect(page.locator('#score')).toHaveText('10');
-  expect(await game.evaluate(state => state.food)).toEqual({ x: 3, y: 3 });
+  expect(await game.evaluate(state => state.food)).toMatchObject({ x: 3, y: 3, kind: 'apple' });
   await expectNoOverflow(page);
   expect(errors).toEqual([]);
 });
