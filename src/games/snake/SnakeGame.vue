@@ -61,11 +61,18 @@ const difficultyOptions: { level: Level; icon: string; label: string }[] = [
   { level: 'normal', icon: 'Ⅱ', label: '标准' },
   { level: 'hard', icon: 'Ⅲ', label: '挑战' },
 ]
-const mobileDirections: { direction: Direction; label: string; symbol: string }[] = [
-  { direction: 'left', label: '向左', symbol: '←' },
-  { direction: 'down', label: '向下', symbol: '↓' },
-  { direction: 'right', label: '向右', symbol: '→' },
+const mobileDirections: { direction: Direction; label: string; icon: string }[] = [
+  { direction: 'left', label: '向左', icon: 'icon-dir-left' },
+  { direction: 'down', label: '向下', icon: 'icon-dir-down' },
+  { direction: 'right', label: '向右', icon: 'icon-dir-right' },
 ]
+const fruitIcons: Record<string, string> = {
+  apple: 'fruit-apple',
+  golden: 'fruit-golden',
+  speed: 'fruit-speed',
+  slow: 'fruit-slow',
+  shrink: 'fruit-shrink',
+}
 const overlay = computed(() => {
   if (game.status === 'recovering') return {
     title: '还有机会，继续出发！',
@@ -344,27 +351,90 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
 function drawFood(ctx: CanvasRenderingContext2D, position: Point, kind: FoodKind = 'apple', remainingMs = FOOD_LIFETIME_MS): void {
   const x = position.x * CELL
   const y = position.y * CELL
+  const cx = x + CELL / 2
+  const cy = y + CELL / 2
   const style = foodTypes[kind]
   ctx.strokeStyle = remainingMs <= 3000 ? '#a44e39' : `${style.color}70`
   ctx.lineWidth = 1.5
   ctx.beginPath()
-  ctx.arc(x + CELL / 2, y + CELL / 2, 11.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remainingMs / FOOD_LIFETIME_MS)
+  ctx.arc(cx, cy, 11.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remainingMs / FOOD_LIFETIME_MS)
   ctx.stroke()
-  roundedRect(ctx, x + 4, y + 5, CELL - 8, CELL - 7, kind === 'golden' ? 2 : 6, style.color)
-  if (kind !== 'apple') {
-    ctx.fillStyle = '#fffdf4'
-    ctx.font = 'bold 14px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(style.symbol, x + CELL / 2, y + CELL / 2 + 1)
+  if (kind === 'apple') {
+    ctx.fillStyle = style.color
+    ctx.beginPath()
+    ctx.arc(cx, cy + 1, 8, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#6c8b4c'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(cx, cy - 6)
+    ctx.lineTo(cx, cy - 10)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(cx + 1, cy - 8)
+    ctx.quadraticCurveTo(cx + 4, cy - 12, cx + 7, cy - 9)
+    ctx.stroke()
     return
   }
-  roundedRect(ctx, x + 7, y + 7, 4, 5, 2, '#e9b59a')
-  ctx.strokeStyle = '#6c8b4c'
-  ctx.lineWidth = 2
+  if (kind === 'golden') {
+    ctx.fillStyle = style.color
+    ctx.beginPath()
+    ctx.moveTo(cx, cy - 9)
+    ctx.lineTo(cx + 3, cy - 3)
+    ctx.lineTo(cx + 9, cy)
+    ctx.lineTo(cx + 3, cy + 3)
+    ctx.lineTo(cx, cy + 9)
+    ctx.lineTo(cx - 3, cy + 3)
+    ctx.lineTo(cx - 9, cy)
+    ctx.lineTo(cx - 3, cy - 3)
+    ctx.closePath()
+    ctx.fill()
+    ctx.fillStyle = '#fffdf480'
+    ctx.beginPath()
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
+  if (kind === 'speed') {
+    ctx.fillStyle = style.color
+    ctx.beginPath()
+    ctx.moveTo(cx + 2, cy - 9)
+    ctx.lineTo(cx - 6, cy + 1)
+    ctx.lineTo(cx - 1, cy + 1)
+    ctx.lineTo(cx - 3, cy + 9)
+    ctx.lineTo(cx + 6, cy - 1)
+    ctx.lineTo(cx + 1, cy - 1)
+    ctx.closePath()
+    ctx.fill()
+    return
+  }
+  if (kind === 'slow') {
+    ctx.fillStyle = style.color
+    ctx.beginPath()
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = style.color
+    ctx.lineWidth = 1.8
+    ctx.lineCap = 'round'
+    for (let i = 0; i < 6; i++) {
+      const angle = i * Math.PI / 3
+      ctx.beginPath()
+      ctx.moveTo(cx + Math.cos(angle) * 4.5, cy + Math.sin(angle) * 4.5)
+      ctx.lineTo(cx + Math.cos(angle) * 9, cy + Math.sin(angle) * 9)
+      ctx.stroke()
+    }
+    return
+  }
+  ctx.fillStyle = style.color
   ctx.beginPath()
-  ctx.moveTo(x + 13, y + 5)
-  ctx.quadraticCurveTo(x + 12, y, x + 17, y + 1)
+  ctx.arc(cx, cy, 9, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = '#fffdf4'
+  ctx.lineWidth = 2.5
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(cx - 5, cy)
+  ctx.lineTo(cx + 5, cy)
   ctx.stroke()
 }
 
@@ -586,7 +656,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="food-status" :class="{ urgent: mode === 'fun' && foodSeconds <= 3 && game.food }">
             <template v-if="currentFood && game.food">
-              <span class="food-symbol" :style="{ background: currentFood.color }" aria-hidden="true">{{ currentFood.symbol }}</span>
+              <SvgIcon class="food-symbol" :style="{ color: currentFood.color }" aria-hidden="true" :name="fruitIcons[game.food.kind]" />
               <span id="current-food">{{ currentFood.label }} <strong>+{{ currentFood.points }}</strong></span>
               <span v-if="mode === 'fun'" id="food-timer">{{ foodSeconds }} 秒后刷新</span>
               <progress v-if="mode === 'fun'" :value="game.food.remainingMs" :max="FOOD_LIFETIME_MS" aria-label="食物剩余时间"></progress>
@@ -623,8 +693,8 @@ onBeforeUnmount(() => {
         </section>
 
         <div class="mobile-controls" role="group" aria-label="触屏方向控制">
-          <button type="button" data-direction="up" aria-label="向上" @pointerdown="onDirectionPointer($event, 'up')" @click="onDirectionClick($event, 'up')">↑</button>
-          <div><button v-for="control in mobileDirections" :key="control.direction" type="button" :data-direction="control.direction" :aria-label="control.label" @pointerdown="onDirectionPointer($event, control.direction)" @click="onDirectionClick($event, control.direction)">{{ control.symbol }}</button></div>
+          <button type="button" data-direction="up" aria-label="向上" @pointerdown="onDirectionPointer($event, 'up')" @click="onDirectionClick($event, 'up')"><SvgIcon class="dir-icon" aria-hidden="true" name="icon-dir-up" /></button>
+          <div><button v-for="control in mobileDirections" :key="control.direction" type="button" :data-direction="control.direction" :aria-label="control.label" @pointerdown="onDirectionPointer($event, control.direction)" @click="onDirectionClick($event, control.direction)"><SvgIcon class="dir-icon" aria-hidden="true" :name="control.icon" /></button></div>
           <p>也可以在棋盘上滑动控制方向</p>
         </div>
 
@@ -660,7 +730,7 @@ onBeforeUnmount(() => {
               <div class="section-heading"><h2>果实图鉴</h2><span>05</span></div>
               <ul class="food-guide" aria-label="食物种类与效果">
                 <li v-for="(food, kind) in foodTypes" :key="kind" :data-food="kind">
-                  <span class="food-symbol" :style="{ background: food.color }" aria-hidden="true">{{ food.symbol }}</span>
+                  <SvgIcon class="food-symbol" :style="{ color: food.color }" aria-hidden="true" :name="fruitIcons[kind as string]" />
                   <div><strong>{{ food.label }} <span>+{{ food.points }}</span></strong><p>{{ food.description }}</p></div>
                 </li>
               </ul>

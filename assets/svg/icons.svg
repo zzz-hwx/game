@@ -42,4 +42,13 @@
   <symbol id="mine-trophy" viewBox="0 0 24 24"><path d="M7 3h10v6a5 5 0 0 1-10 0V3Zm0 2H3v3a4 4 0 0 0 4 4m10-7h4v3a4 4 0 0 1-4 4m-5 2v7m-4 0h8"/></symbol>
   <symbol id="mine-spark" viewBox="0 0 24 24"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z"/></symbol>
   <symbol id="mine-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 9h.01M16 9h.01m-8 5q4 5 8 0"/></symbol>
+  <symbol id="icon-dir-up" viewBox="0 0 24 24"><path d="M12 19V5m-7 7 7-7 7 7"/></symbol>
+  <symbol id="icon-dir-down" viewBox="0 0 24 24"><path d="M12 5v14m7-7-7 7-7-7"/></symbol>
+  <symbol id="icon-dir-left" viewBox="0 0 24 24"><path d="M19 12H5m7-7-7 7 7 7"/></symbol>
+  <symbol id="icon-dir-right" viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></symbol>
+  <symbol id="fruit-apple" viewBox="0 0 24 24"><circle cx="12" cy="14" r="7.5" fill="currentColor" stroke="none"/><path d="M12 6.5V3.5" stroke="#6c8b4c" stroke-width="2" stroke-linecap="round" fill="none"/><path d="M13.5 4.5Q16 2.5 18 4" stroke="#6c8b4c" stroke-width="1.5" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="fruit-golden" viewBox="0 0 24 24"><path d="M12 2.5 14.5 9.5 21.5 12 14.5 14.5 12 21.5 9.5 14.5 2.5 12 9.5 9.5Z" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="2" fill="#fffdf4" opacity=".5"/></symbol>
+  <symbol id="fruit-speed" viewBox="0 0 24 24"><path d="M13 3 4 14h6l-2 7 9-11h-6Z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="fruit-slow" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/><path d="M12 2v20M2 12h20M5.5 5.5l13 13M18.5 5.5l-13 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="fruit-shrink" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="currentColor" stroke="none"/><path d="M7 12h10" stroke="#fffdf4" stroke-width="2.5" stroke-linecap="round" fill="none"/></symbol>
 </svg>
