@@ -6,13 +6,14 @@ import {
   directions, foodTypes, getMoveDelay, levels, parsePreferences, queueTurn,
   resumeGame as resumeState, startGame as resetAndStart, tick,
 } from './engine'
-import type { Collision, Direction, FoodKind, GameStatus, Level, Point, TickResult } from './engine'
+import type { Collision, Direction, FoodKind, GameStatus, Level, PlayMode, Point, TickResult } from './engine'
 
 const STORAGE_KEY = 'little-break-snake'
 const TOUCH_REPEAT_WINDOW_MS = 80
-const game = reactive(createGame())
+const game = reactive(createGame('classic'))
 const best = ref(0)
 const level = ref<Level>('normal')
+const mode = ref<PlayMode>('classic')
 const soundEnabled = ref(false)
 const announcement = ref('')
 const popping = ref(false)
@@ -25,7 +26,19 @@ const startButton = ref<HTMLButtonElement | null>(null)
 const pauseButton = ref<HTMLButtonElement | null>(null)
 const levelDialog = ref<HTMLDialogElement | null>(null)
 const pendingLevel = ref<Level | null>(null)
+const pendingMode = ref<PlayMode | null>(null)
 const pendingLevelLabel = computed(() => difficultyOptions.find(option => option.level === pendingLevel.value)?.label)
+const pendingModeLabel = computed(() => modeOptions.find(option => option.mode === pendingMode.value)?.label)
+const dialogTitle = computed(() => {
+  if (pendingMode.value && pendingMode.value !== mode.value) return `切换到「${pendingModeLabel.value}」？`
+  if (pendingLevel.value && pendingLevel.value !== level.value) return `切换为「${pendingLevelLabel.value}」难度？`
+  return '重新开始？'
+})
+const dialogConfirmLabel = computed(() => {
+  if (pendingMode.value && pendingMode.value !== mode.value) return '切换玩法'
+  if (pendingLevel.value && pendingLevel.value !== level.value) return '切换难度'
+  return '确认并重开'
+})
 const active = computed(() => ['running', 'paused', 'recovering'].includes(game.status))
 const canResume = computed(() => game.status === 'paused' || game.status === 'recovering')
 const currentFood = computed(() => game.food ? foodTypes[game.food.kind] : null)
@@ -39,6 +52,10 @@ const collisionLabels: Record<Collision, string> = { wall: '撞到墙壁', body:
 const statusLabels: Record<GameStatus, string> = {
   ready: '准备就绪', running: '快乐进行中', paused: '休息一下', recovering: '等待续玩', over: '本局结束', won: '完美通关',
 }
+const modeOptions: { mode: PlayMode; label: string; description: string }[] = [
+  { mode: 'classic', label: '经典模式', description: '普通食物，一条命，撞墙即结束' },
+  { mode: 'fun', label: '趣味模式', description: '五种果实，三条命，石块障碍' },
+]
 const difficultyOptions: { level: Level; icon: string; label: string }[] = [
   { level: 'easy', icon: 'Ⅰ', label: '悠闲' },
   { level: 'normal', icon: 'Ⅱ', label: '标准' },
@@ -65,6 +82,12 @@ const overlay = computed(() => {
     eyebrow: game.status === 'won' ? 'YOU ATE THE WHOLE WORLD' : 'A LITTLE BREAK, A FRESH START',
     hint: '按空格键，快乐重新开始',
   }
+  if (mode.value === 'classic') {
+    return {
+      title: '准备好，开吃！', description: '经典玩法：普通食物，一条命，撞墙或咬到自己就结束。', button: '开始游戏',
+      eyebrow: "LET'S TAKE A LITTLE BREAK", hint: '也可以按空格键开始',
+    }
+  }
   return {
     title: '准备好，开吃！', description: '三条命，五种果实。绕开石块，抓紧开吃。', button: '开始游戏',
     eyebrow: "LET'S TAKE A LITTLE BREAK", hint: '也可以按空格键开始',
@@ -89,15 +112,20 @@ function formatScore(value: number): string {
 
 function savePreferences(): void {
   try {
-    best.value = Math.max(best.value, parsePreferences(localStorage.getItem(STORAGE_KEY)).best)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ best: best.value, level: level.value, sound: soundEnabled.value }))
+    const saved = parsePreferences(localStorage.getItem(STORAGE_KEY))
+    saved.best[mode.value][level.value] = Math.max(saved.best[mode.value][level.value], best.value)
+    best.value = saved.best[mode.value][level.value]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ best: saved.best, level: level.value, mode: mode.value, sound: soundEnabled.value }))
   } catch { /* Storage may be disabled. The game still works for this session. */ }
 }
 
 function onStorage(event: StorageEvent): void {
   if (event.key !== STORAGE_KEY) return
   try {
-    if (event.storageArea === localStorage) best.value = Math.max(best.value, parsePreferences(localStorage.getItem(STORAGE_KEY)).best)
+    if (event.storageArea === localStorage) {
+      const saved = parsePreferences(localStorage.getItem(STORAGE_KEY))
+      best.value = Math.max(best.value, saved.best[mode.value][level.value])
+    }
   } catch { /* Local storage can be unavailable. */ }
 }
 
@@ -140,6 +168,7 @@ function updateClock(): GameStatus {
 
 function startGame(): void {
   clearTimer()
+  game.mode = mode.value
   resetAndStart(game)
   touchDirectionTimes.clear()
   popping.value = false
@@ -148,7 +177,9 @@ function startGame(): void {
   draw()
   playTone('start')
   scheduleTick()
-  announcement.value = '游戏开始，共三条生命。方向键或 WASD 控制移动，空格键暂停。'
+  announcement.value = mode.value === 'classic'
+    ? '经典模式开始。方向键或 WASD 控制移动，空格键暂停。'
+    : '趣味模式开始，共三条生命。方向键或 WASD 控制移动，空格键暂停。'
   focusBoard()
 }
 
@@ -220,19 +251,23 @@ function changeDirection(name: Direction, touch = false): void {
   if (queueTurn(game, name) && touch) touchDirectionTimes.set(name, now)
 }
 
-function changeLevel(next: Level): void {
-  if (next === level.value || pendingLevel.value) return
+function requestRestart(nextLevel: Level = level.value, nextMode: PlayMode = mode.value): void {
+  const levelChanged = nextLevel !== level.value
+  const modeChanged = nextMode !== mode.value
+  if ((!levelChanged && !modeChanged) || pendingLevel.value || pendingMode.value) return
   if (game.status === 'ready') {
-    level.value = next
+    if (levelChanged) level.value = nextLevel
+    if (modeChanged) mode.value = nextMode
     savePreferences()
     return
   }
   resumeAfterLevelChange = game.status === 'running'
   pauseGame(false)
   clearTouch()
-  pendingLevel.value = next
+  pendingLevel.value = levelChanged ? nextLevel : null
+  pendingMode.value = modeChanged ? nextMode : null
   void nextTick(() => {
-    if (!mounted || !pendingLevel.value || !levelDialog.value) return
+    if (!mounted || (!pendingLevel.value && !pendingMode.value) || !levelDialog.value) return
     levelDialog.value.returnValue = ''
     levelDialog.value.showModal()
   })
@@ -240,14 +275,24 @@ function changeLevel(next: Level): void {
 
 function onLevelDialogClosed(): void {
   const next = pendingLevel.value
+  const nextMode = pendingMode.value
   const shouldResume = resumeAfterLevelChange
   pendingLevel.value = null
+  pendingMode.value = null
   resumeAfterLevelChange = false
-  if (!mounted || !next) return
+  if (!mounted || (!next && !nextMode)) return
   if (levelDialog.value?.returnValue === 'confirm') {
-    level.value = next
+    if (next) level.value = next
+    if (nextMode) mode.value = nextMode
     savePreferences()
-    startGame()
+    clearTimer()
+    game.mode = mode.value
+    resetAndStart(game)
+    game.status = 'ready'
+    touchDirectionTimes.clear()
+    popping.value = false
+    draw()
+    announceOverlay(true)
   } else if (shouldResume && !document.hidden) resumeGame()
   if (game.status === 'running') board.value?.scrollIntoView({ block: 'center' })
 }
@@ -470,8 +515,9 @@ onMounted(() => {
   mounted = true
   try {
     const saved = parsePreferences(localStorage.getItem(STORAGE_KEY))
-    best.value = saved.best
     level.value = saved.level
+    mode.value = saved.mode
+    best.value = saved.best[mode.value][level.value]
     soundEnabled.value = saved.sound
   } catch { /* Local storage can be unavailable. */ }
   context = canvas.value?.getContext('2d') ?? null
@@ -532,18 +578,18 @@ onBeforeUnmount(() => {
             <div id="game-status" class="game-status" :data-state="game.status"><span></span><span id="status-text">{{ statusLabels[game.status] }}</span></div>
           </div>
           <div class="run-info" role="group" aria-label="本局状态">
-            <div id="lives" class="lives" :aria-label="`剩余 ${game.lives} 条生命`">
+            <div v-if="mode === 'fun'" id="lives" class="lives" :aria-label="`剩余 ${game.lives} 条生命`">
               <span>生命</span><span class="life-dots" aria-hidden="true"><i v-for="life in INITIAL_LIVES" :key="life" :class="{ lost: life > game.lives }"></i></span><strong>{{ game.lives }}/{{ INITIAL_LIVES }}</strong>
             </div>
             <span id="snake-length">长度 {{ game.snake.length }}</span>
-            <span id="effect-status" :data-effect="game.effect?.kind ?? 'none'">{{ effectLabel }}</span>
+            <span v-if="mode === 'fun'" id="effect-status" :data-effect="game.effect?.kind ?? 'none'">{{ effectLabel }}</span>
           </div>
-          <div class="food-status" :class="{ urgent: foodSeconds <= 3 && game.food }">
+          <div class="food-status" :class="{ urgent: mode === 'fun' && foodSeconds <= 3 && game.food }">
             <template v-if="currentFood && game.food">
               <span class="food-symbol" :style="{ background: currentFood.color }" aria-hidden="true">{{ currentFood.symbol }}</span>
               <span id="current-food">{{ currentFood.label }} <strong>+{{ currentFood.points }}</strong></span>
-              <span id="food-timer">{{ foodSeconds }} 秒后刷新</span>
-              <progress :value="game.food.remainingMs" :max="FOOD_LIFETIME_MS" aria-label="食物剩余时间"></progress>
+              <span v-if="mode === 'fun'" id="food-timer">{{ foodSeconds }} 秒后刷新</span>
+              <progress v-if="mode === 'fun'" :value="game.food.remainingMs" :max="FOOD_LIFETIME_MS" aria-label="食物剩余时间"></progress>
             </template>
             <span v-else>所有空格都吃完啦</span>
           </div>
@@ -584,28 +630,42 @@ onBeforeUnmount(() => {
 
         <aside class="sidebar">
           <section class="settings-card">
+            <div class="section-heading"><h2>选择玩法</h2><span>00</span></div>
+            <p class="section-description">{{ mode === 'classic' ? '纯粹体验，经典回归。' : '五种果实，三种障碍，更多乐趣。' }}</p>
+            <div class="mode-options" role="group" aria-label="游戏玩法">
+              <button v-for="option in modeOptions" :key="option.mode" type="button" class="mode-button" :class="{ active: mode === option.mode }" :data-mode="option.mode" :aria-pressed="mode === option.mode" :disabled="!!(pendingMode || pendingLevel)" @click="requestRestart(level, option.mode)"><span>{{ option.label }}</span><span class="mode-desc">{{ option.description }}</span></button>
+            </div>
+            <div class="card-divider"></div>
             <div class="section-heading"><h2>你的游戏，你的节奏</h2><span>01</span></div>
             <p class="section-description">选一个舒服的速度，出发吧。</p>
             <div class="difficulty-options" role="group" aria-label="游戏难度">
-              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" @click="changeLevel(option.level)"><span class="level-icon">{{ option.icon }}</span><span>{{ option.label }}</span></button>
+              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" :disabled="!!(pendingMode || pendingLevel)" @click="requestRestart(option.level, mode)"><span class="level-icon">{{ option.icon }}</span><span>{{ option.label }}</span></button>
             </div>
             <div class="speed-caption"><span class="small-dot"></span><span id="speed-caption">{{ speedCaption }}</span></div>
             <div class="card-divider"></div>
             <div class="section-heading"><h2>简单三步，快乐加倍</h2><SvgIcon class="icon muted" aria-hidden="true" name="icon-arrow" /></div>
             <ol id="game-controls-help" class="instructions">
               <li><span class="step-number">1</span><div><strong>控制方向</strong><p>方向键或 WASD，带小蛇去探索。</p></div></li>
-              <li><span class="step-number">2</span><div><strong>认准果实，及时开吃</strong><p>果实 {{ FOOD_LIFETIME_MS / 1000 }} 秒后消失并刷新，暂停时停止计时。</p><p>未满 {{ FOOD_EDGE_UNLOCK_SCORE }} 分只在中央刷新，达到后墙边、角落也会出现；中央放满时提前开放全图。</p></div></li>
-              <li><span class="step-number">3</span><div><strong>绕开石块，珍惜生命</strong><p>每局 {{ INITIAL_LIVES }} 条命，撞墙、撞灰色石块或自己都会扣 1 条。归零才结束；续玩保留分数，蛇回到起点，清除变速效果。</p></div></li>
+              <template v-if="mode === 'fun'">
+                <li><span class="step-number">2</span><div><strong>认准果实，及时开吃</strong><p>果实 {{ FOOD_LIFETIME_MS / 1000 }} 秒后消失并刷新，暂停时停止计时。</p><p>未满 {{ FOOD_EDGE_UNLOCK_SCORE }} 分只在中央刷新，达到后墙边、角落也会出现；中央放满时提前开放全图。</p></div></li>
+                <li><span class="step-number">3</span><div><strong>绕开石块，珍惜生命</strong><p>每局 {{ INITIAL_LIVES }} 条命，撞墙、撞灰色石块或自己都会扣 1 条。归零才结束；续玩保留分数，蛇回到起点，清除变速效果。</p></div></li>
+              </template>
+              <template v-else>
+                <li><span class="step-number">2</span><div><strong>吃掉红果，不断成长</strong><p>普通食物不过期，吃一个长一格。</p></div></li>
+                <li><span class="step-number">3</span><div><strong>小心墙壁，珍惜生命</strong><p>一条命，撞墙或咬到自己就结束。</p></div></li>
+              </template>
             </ol>
-            <div class="card-divider"></div>
-            <div class="section-heading"><h2>果实图鉴</h2><span>05</span></div>
-            <ul class="food-guide" aria-label="食物种类与效果">
-              <li v-for="(food, kind) in foodTypes" :key="kind" :data-food="kind">
-                <span class="food-symbol" :style="{ background: food.color }" aria-hidden="true">{{ food.symbol }}</span>
-                <div><strong>{{ food.label }} <span>+{{ food.points }}</span></strong><p>{{ food.description }}</p></div>
-              </li>
-            </ul>
-            <p class="effect-help">加速与减速不叠加，以最后吃到的为准，持续 6 秒。</p>
+            <template v-if="mode === 'fun'">
+              <div class="card-divider"></div>
+              <div class="section-heading"><h2>果实图鉴</h2><span>05</span></div>
+              <ul class="food-guide" aria-label="食物种类与效果">
+                <li v-for="(food, kind) in foodTypes" :key="kind" :data-food="kind">
+                  <span class="food-symbol" :style="{ background: food.color }" aria-hidden="true">{{ food.symbol }}</span>
+                  <div><strong>{{ food.label }} <span>+{{ food.points }}</span></strong><p>{{ food.description }}</p></div>
+                </li>
+              </ul>
+              <p class="effect-help">加速与减速不叠加，以最后吃到的为准，持续 6 秒。</p>
+            </template>
             <div class="keyboard-guide" aria-hidden="true"><div class="key-row"><kbd>↑</kbd></div><div class="key-row"><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div><span>或 W / A / S / D</span></div>
           </section>
           <section class="break-card">
@@ -620,11 +680,11 @@ onBeforeUnmount(() => {
       <footer><span><span class="footer-dot"></span> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <span class="footer-star">＋</span></span></footer>
     </main>
     <dialog id="level-dialog" ref="levelDialog" class="level-dialog" aria-labelledby="level-dialog-title" aria-describedby="level-dialog-description" @close="onLevelDialogClosed" @cancel.prevent="levelDialog?.close()">
-      <h2 id="level-dialog-title">切换为「{{ pendingLevelLabel }}」难度？</h2>
-      <p id="level-dialog-description">确认后会按新难度重新开局，当前得分、蛇身、生命和食物效果将重置，最高纪录保留。</p>
+      <h2 id="level-dialog-title">{{ dialogTitle }}</h2>
+      <p id="level-dialog-description">确认后会按新设置重新开局，当前得分、蛇身、生命和食物效果将重置，最高纪录保留。</p>
       <div class="level-dialog-actions">
         <button id="level-cancel" type="button" class="secondary-button" autofocus @click="levelDialog?.close()">取消切换</button>
-        <button id="level-confirm" type="button" class="primary-button" @click="levelDialog?.close('confirm')">确认并重开</button>
+        <button id="level-confirm" type="button" class="primary-button" @click="levelDialog?.close('confirm')">{{ dialogConfirmLabel }}</button>
       </div>
     </dialog>
     <div id="announcement" class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>

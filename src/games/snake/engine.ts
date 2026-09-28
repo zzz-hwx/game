@@ -26,6 +26,7 @@ export const levels = {
   hard: { delay: 80, caption: '全神贯注，挑战你的反应力' },
 } as const
 
+export type PlayMode = 'classic' | 'fun'
 export type Level = keyof typeof levels
 export type Direction = 'up' | 'down' | 'left' | 'right'
 export type GameStatus = 'ready' | 'running' | 'paused' | 'recovering' | 'over' | 'won'
@@ -45,6 +46,7 @@ export interface SnakeState {
   effect: SpeedEffect | null
   collision: Collision | null
   status: GameStatus
+  mode: PlayMode
 }
 export type TickResult = 'idle' | 'moved' | 'ate' | 'life-lost' | 'over' | 'won'
 
@@ -59,23 +61,31 @@ function initialSnake(): Point[] {
   return [{ x: 8, y: 11 }, { x: 7, y: 11 }, { x: 6, y: 11 }, { x: 5, y: 11 }]
 }
 
-export function createGame(): SnakeState {
-  return {
+export function createGame(mode: PlayMode = 'classic'): SnakeState {
+  const base = {
     snake: initialSnake(),
-    obstacles: OBSTACLES.map(point => ({ ...point })),
-    food: { x: 18, y: 11, kind: 'apple', remainingMs: FOOD_LIFETIME_MS },
-    direction: 'right',
-    turns: [],
+    direction: 'right' as Direction,
+    turns: [] as Direction[],
     score: 0,
-    lives: INITIAL_LIVES,
     effect: null,
     collision: null,
-    status: 'ready',
+    status: 'ready' as GameStatus,
+    mode,
+  }
+  if (mode === 'classic') {
+    return { ...base, obstacles: [], food: { x: 18, y: 11, kind: 'apple', remainingMs: FOOD_LIFETIME_MS }, lives: 1 }
+  }
+  return {
+    ...base,
+    obstacles: OBSTACLES.map(point => ({ ...point })),
+    food: { x: 18, y: 11, kind: 'apple', remainingMs: FOOD_LIFETIME_MS },
+    lives: INITIAL_LIVES,
   }
 }
 
 export function startGame(game: SnakeState): void {
-  Object.assign(game, createGame(), { status: 'running' })
+  const mode = game.mode
+  Object.assign(game, createGame(mode), { status: 'running' })
 }
 
 export function resumeGame(game: SnakeState): void {
@@ -100,7 +110,7 @@ export function queueTurn(game: SnakeState, name: Direction): boolean {
 }
 
 export function spawnFood(
-  game: Pick<SnakeState, 'snake' | 'obstacles' | 'score'>,
+  game: Pick<SnakeState, 'snake' | 'obstacles' | 'score' | 'mode'>,
   random: () => number = Math.random,
   previous?: Point,
 ): Food | null {
@@ -121,7 +131,7 @@ export function spawnFood(
   const alternatives = previous ? candidates.filter(point => !samePoint(point, previous)) : candidates
   const cells = alternatives.length ? alternatives : candidates
   const position = cells[Math.floor(random() * cells.length)]!
-  const kind = foodDistribution[Math.floor(random() * foodDistribution.length)]!
+  const kind = game.mode === 'classic' ? 'apple' : foodDistribution[Math.floor(random() * foodDistribution.length)]!
   return { ...position, kind, remainingMs: FOOD_LIFETIME_MS }
 }
 
@@ -135,6 +145,7 @@ export function advanceTime(game: SnakeState, elapsedMs: number, random: () => n
     game.effect.remainingMs -= elapsedMs
     if (game.effect.remainingMs <= 0) game.effect = null
   }
+  if (game.mode === 'classic') return
   if (game.food) {
     game.food.remainingMs -= elapsedMs
     if (game.food.remainingMs <= 0) {
@@ -169,19 +180,27 @@ export function tick(game: SnakeState, random: () => number = Math.random): Tick
   const head = { x: previousHead.x + movement.x, y: previousHead.y + movement.y }
   const eaten = game.food && samePoint(head, game.food) ? game.food : null
   const body = eaten && eaten.kind !== 'shrink' ? game.snake : game.snake.slice(0, -1)
-  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return loseLife(game, 'wall', random)
-  if (game.obstacles.some(part => samePoint(part, head))) return loseLife(game, 'obstacle', random)
-  if (body.some(part => samePoint(part, head))) return loseLife(game, 'body', random)
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    if (game.mode === 'classic') { game.lives = 0; game.status = 'over'; game.collision = 'wall'; return 'over' }
+    return loseLife(game, 'wall', random)
+  }
+  if (game.mode === 'fun' && game.obstacles.some(part => samePoint(part, head))) return loseLife(game, 'obstacle', random)
+  if (body.some(part => samePoint(part, head))) {
+    if (game.mode === 'classic') { game.lives = 0; game.status = 'over'; game.collision = 'body'; return 'over' }
+    return loseLife(game, 'body', random)
+  }
   game.snake.unshift(head)
   if (!eaten) {
     game.snake.pop()
     return 'moved'
   }
   game.score += foodTypes[eaten.kind].points
-  if (eaten.kind === 'shrink') {
-    game.snake.length = Math.max(MIN_SNAKE_LENGTH, game.snake.length - 1 - SHRINK_CELLS)
-  } else if (eaten.kind === 'speed' || eaten.kind === 'slow') {
-    game.effect = { kind: eaten.kind, remainingMs: EFFECT_DURATION_MS }
+  if (game.mode === 'fun') {
+    if (eaten.kind === 'shrink') {
+      game.snake.length = Math.max(MIN_SNAKE_LENGTH, game.snake.length - 1 - SHRINK_CELLS)
+    } else if (eaten.kind === 'speed' || eaten.kind === 'slow') {
+      game.effect = { kind: eaten.kind, remainingMs: EFFECT_DURATION_MS }
+    }
   }
   game.food = spawnFood(game, random)
   if (!game.food) {
@@ -191,19 +210,43 @@ export function tick(game: SnakeState, random: () => number = Math.random): Tick
   return 'ate'
 }
 
-export interface Preferences { best: number; level: Level; sound: boolean }
+export interface ModeBest { best: number }
+export interface Preferences {
+  best: { classic: Record<Level, number>; fun: Record<Level, number> }
+  level: Level
+  mode: PlayMode
+  sound: boolean
+}
+
+const defaultModeBest = (): Record<Level, number> => ({ easy: 0, normal: 0, hard: 0 })
+const defaultBest = () => ({ classic: defaultModeBest(), fun: defaultModeBest() })
 
 export function parsePreferences(raw: string | null): Preferences {
-  const defaults: Preferences = { best: 0, level: 'normal', sound: false }
+  const defaults: Preferences = { best: defaultBest(), level: 'normal', mode: 'classic', sound: false }
   try {
     const saved: unknown = JSON.parse(raw ?? 'null')
     if (!saved || typeof saved !== 'object') return defaults
     const value = saved as Record<string, unknown>
-    return {
-      best: typeof value.best === 'number' && Number.isSafeInteger(value.best) && value.best >= 0 ? value.best : 0,
-      level: value.level === 'easy' || value.level === 'normal' || value.level === 'hard' ? value.level : 'normal',
-      sound: value.sound === true,
+    const parsedBest = defaultBest()
+    if (value.best && typeof value.best === 'object') {
+      const bestObj = value.best as Record<string, unknown>
+      for (const mode of ['classic', 'fun'] as const) {
+        if (bestObj[mode] && typeof bestObj[mode] === 'object') {
+          const modeObj = bestObj[mode] as Record<string, unknown>
+          for (const level of ['easy', 'normal', 'hard'] as const) {
+            const v = modeObj[level]
+            if (typeof v === 'number' && Number.isSafeInteger(v) && v >= 0) parsedBest[mode][level] = v
+          }
+        }
+      }
     }
+    const level: Level = value.level === 'easy' || value.level === 'normal' || value.level === 'hard' ? value.level : 'normal'
+    const mode: PlayMode = value.mode === 'classic' || value.mode === 'fun' ? value.mode : 'classic'
+    const sound = value.sound === true
+    if (typeof value.best === 'number' && Number.isSafeInteger(value.best) && value.best >= 0) {
+      parsedBest.fun[level] = value.best
+    }
+    return { best: parsedBest, level, mode, sound }
   } catch {
     return defaults
   }

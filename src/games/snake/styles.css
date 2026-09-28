@@ -88,6 +88,13 @@ h1{margin:8px 0 8px;font-size:43px;font-weight:800;line-height:1.4;letter-spacin
 .difficulty-button{flex:1;background:transparent;border:1px solid transparent;border-radius:5px;color:#90987f;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;padding:9px 0}
 .difficulty-button.active{color:#3a5c34;background:#fdfef5;border-color:#dfe6ce;box-shadow:0 2px 3px #405a2710;font-weight:600}
 .difficulty-button:hover:not(.active){background:#e6ecd8;color:#4c6540}
+.mode-options{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.mode-button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 12px;border:1px solid #e9ecdf;border-radius:8px;background:#f8f9f2;color:#657357;font-size:12px;text-align:left}
+.mode-button.active{border-color:#8ca362;background:#edf3df;color:#315e3b;font-weight:600}
+.mode-button:hover:not(.active){background:#edf1e1;border-color:#d4dbc6}
+.mode-button:disabled{opacity:.5;cursor:default}
+.mode-desc{font-size:9px;color:#929b85;font-weight:400;letter-spacing:.2px}
+.mode-button.active .mode-desc{color:#657357}
 .level-dialog{width:380px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--line);border-radius:16px;padding:24px;background:var(--white);color:var(--ink);box-shadow:0 18px 60px #263d2e30}.level-dialog::backdrop{background:#263d2e66;backdrop-filter:blur(3px)}.level-dialog h2{font-size:20px;margin:0 0 12px}.level-dialog p{font-size:12px;line-height:1.8;color:#657357;margin:0 0 24px}.level-dialog-actions{display:flex;gap:12px;flex-wrap:wrap}.level-dialog-actions button{flex:1;min-width:100px;min-height:44px;padding:12px 8px;font-size:12px;white-space:nowrap}.level-dialog .secondary-button{border:1px solid #d9e0cc;border-radius:9px;background:#f0f3e6;color:#526b46}.level-dialog .secondary-button:hover{background:#e4edcf}
 .level-icon{font-size:12px;letter-spacing:-1px}
 .speed-caption{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:9px;color:#9aa387;min-height:14px}
