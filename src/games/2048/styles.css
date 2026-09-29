@@ -17,7 +17,7 @@
 .intro-description { font-size: 11px; line-height: 2.1; color: #85907a; margin: 20px 0 23px; }
 .mode-label { display: inline-flex; align-items: center; gap: 8px; font-size: 10px; background: #eef0e1; border: 1px solid #e0e5d0; border-radius: 6px; padding: 9px 11px; color: #788768; }
 .mode-label svg { width: 13px; height: 13px; }
-.mode-label > span { margin-left: 13px; }
+.mode-label > svg { margin-left: 13px; }
 .controls-guide { margin-top: 35px; padding-top: 23px; border-top: 1px solid #e0e4d4; max-width: 235px; }
 .controls-guide h3 { font-size: 11px; font-weight: 550; margin: 0; }
 .controls-guide h3 > span { display: block; margin-top: 7px; color: #9aa28e; font: 7px Consolas, monospace; letter-spacing: 1.5px; }
@@ -116,6 +116,7 @@ kbd { font-family: inherit; font-weight: 400; }
 .merge-example b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px; background: #eeeddf; border: 1px solid #e0e2d0; color: #8e917a; font-size: 13px; font-weight: 600; }
 .merge-example b:last-child { background: #e6e6c9; border-color: #d8dec1; color: #879066; }
 .merge-example i { font-size: 9px; font-style: normal; color: #a6ae97; }
+.merge-example svg { width: 14px; height: 14px; fill: none; stroke: #a6ae97; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .tip-card { display: flex; gap: 10px; padding: 15px 14px; border: 1px dashed #d5ddc1; border-radius: 8px; color: #97a67c; }
 .tip-card svg { width: 17px; height: 17px; }
 .tip-card strong { display: block; font-size: 10px; font-weight: 500; color: #809068; }
@@ -123,7 +124,7 @@ kbd { font-family: inherit; font-weight: 400; }
 footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 23px 0; border-top: 1px solid #e0e5d4; color: #9aa58a; font-size: 9px; }
 footer > span { display: flex; align-items: center; gap: 7px; }
 footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1px; }
-footer b { font-size: 19px; font-weight: 400; margin-left: 12px; color: #8e9f75; }
+footer > svg { width: 14px; height: 14px; fill: none; stroke: #8e9f75; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-left: 12px; }
 .result-overlay { position: absolute; z-index: 3; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: #f5f5e9ed; backdrop-filter: blur(5px); border-radius: 7px; padding: 20px; }
 .result-badge { display: grid; place-items: center; width: 61px; height: 61px; border: 1px solid #d3ddbf; border-radius: 19px; color: #7e9663; background: #e8edd9; margin-bottom: 22px; transform: rotate(-7deg); }
 .result-badge svg { width: 29px; height: 29px; }
@@ -228,6 +229,7 @@ footer b { font-size: 19px; font-weight: 400; margin-left: 12px; color: #8e9f75;
   .save-entry-actions button { min-height: 44px; min-width: 70px; }
   .touch-controls { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
   .touch-controls button { width: 47px; height: 39px; border: 1px solid #dbe1cb; border-bottom-width: 3px; background: #f9faf1; border-radius: 6px; color: #80916b; font-size: 18px; touch-action: manipulation; }
+  .touch-controls .dir-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
   .touch-controls button:active { background: #e7edd8; }
   .touch-controls button:disabled { opacity: .4; }
   .save-note { margin-top: 13px; }
@@ -246,7 +248,7 @@ footer b { font-size: 19px; font-weight: 400; margin-left: 12px; color: #8e9f75;
   .tip-card p { margin-top: 5px; }
   footer { font-size: 8px; padding: 20px 0; }
   footer > span:last-child { font-size: 5px; letter-spacing: .1px; }
-  footer b { margin-left: 0; font-size: 14px; }
+  footer > svg { margin-left: 0; width: 12px; height: 12px; }
   .result-overlay { padding: 12px; }
   .result-badge { width: 49px; height: 49px; margin-bottom: 14px; border-radius: 15px; }
   .result-overlay h2 { font-size: 19px; margin-top: 12px; }

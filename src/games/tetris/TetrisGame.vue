@@ -46,12 +46,12 @@ const overlay = computed<OverlayMessage>(() => {
     button: '开始游戏', hint: '或按 Enter 开始',
   };
 });
-const touchControls: { action: Exclude<Action, 'tick'>; label: string; text: string }[] = [
+const touchControls: { action: Exclude<Action, 'tick'>; label: string; text: string; icon?: string }[] = [
   { action: 'hold', label: '暂存方块', text: 'C' },
-  { action: 'left', label: '向左移动', text: '←' },
-  { action: 'rotate', label: '旋转方块', text: '↻' },
-  { action: 'right', label: '向右移动', text: '→' },
-  { action: 'down', label: '加速下落', text: '↓' },
+  { action: 'left', label: '向左移动', text: '←', icon: 'icon-dir-left' },
+  { action: 'rotate', label: '旋转方块', text: '↻', icon: 'icon-rotate' },
+  { action: 'right', label: '向右移动', text: '→', icon: 'icon-dir-right' },
+  { action: 'down', label: '加速下落', text: '↓', icon: 'icon-dir-down' },
   { action: 'drop', label: '直接落底', text: '落底' },
 ];
 const keyActions: Partial<Record<string, Action>> = {
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
         <div class="eyebrow"><span class="live-dot"></span> 经典游戏，全新心情</div>
         <h1 id="page-title">落下，<br>刚刚好<span class="title-period">。</span></h1>
         <p class="intro-copy">把纷乱拼成秩序，<br>在方块之间，找回一点专注。</p>
-        <div class="mode-tag"><span>01</span> 经典 · 无尽模式 <span class="tag-arrow">↗</span></div>
+        <div class="mode-tag"><span>01</span> 经典 · 无尽模式 <SvgIcon class="tag-arrow" aria-hidden="true" name="icon-arrow-up-right" /></div>
         <div class="intro-actions" aria-label="游戏设置与帮助">
           <button id="sound-button" class="sound-button" :aria-pressed="soundEnabled" :title="soundEnabled ? '关闭音效' : '开启音效'" @click="toggleSound">
             <SvgIcon aria-hidden="true" name="tetris-icon-sound" /><span id="sound-label">{{ soundEnabled ? '音效开' : '音效关' }}</span>
@@ -475,7 +475,7 @@ onBeforeUnmount(() => {
           <div class="control-row"><span>直接落底</span><div><kbd class="wide-key">SPACE</kbd></div></div>
           <div class="control-row"><span>暂存 / 暂停</span><div><kbd>C</kbd><span class="key-separator">/</span><kbd>P</kbd></div></div>
         </div>
-        <div class="little-note"><span class="note-spark">✳</span><p>不必填满每一分钟。<br>偶尔，消除几行就好。</p></div>
+        <div class="little-note"><SvgIcon class="note-spark" aria-hidden="true" name="i-spark" /><p>不必填满每一分钟。<br>偶尔，消除几行就好。</p></div>
       </section>
 
       <section class="play-area" aria-label="俄罗斯方块游戏">
@@ -501,7 +501,10 @@ onBeforeUnmount(() => {
         </div>
         <div class="touch-controls" aria-label="触屏游戏操作">
           <button v-for="control in touchControls" :key="control.action" :data-action="control.action" :class="{ 'touch-drop': control.action === 'drop' }" :aria-label="control.label"
-            @pointerdown="touchStart($event, control.action)" @pointerup="stopTouch" @pointercancel="stopTouch" @lostpointercapture="stopTouch" @click="touchClick($event, control.action)">{{ control.text }}</button>
+            @pointerdown="touchStart($event, control.action)" @pointerup="stopTouch" @pointercancel="stopTouch" @lostpointercapture="stopTouch" @click="touchClick($event, control.action)">
+            <SvgIcon v-if="control.icon" class="dir-icon" aria-hidden="true" :name="control.icon" />
+            <span v-else>{{ control.text }}</span>
+          </button>
         </div>
         <p class="board-caption">一块一块来，好状态自然会来。</p>
       </section>

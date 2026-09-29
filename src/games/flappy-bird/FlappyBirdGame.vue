@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
         <div class="little-note"><span>A NOTE TO YOURSELF</span><p>偶尔落地，<br>也是为了下一次<span>起飞。</span></p><SvgIcon name="icon-leaf" /></div>
       </aside>
     </div>
-    <footer><span><i></i> 给自己一点空间，让快乐自由飞行。</span><span>TAKE A BREATH. TAKE FLIGHT. <b>↗</b></span></footer>
+    <footer><span><i></i> 给自己一点空间，让快乐自由飞行。</span><span>TAKE A BREATH. TAKE FLIGHT. <SvgIcon class="footer-arrow" aria-hidden="true" name="icon-arrow-up-right" /></span></footer>
     <dialog ref="confirmDialog" class="confirm-dialog" aria-labelledby="flappy-confirm-title" @cancel.prevent="cancelRestart"><span class="eyebrow">A FRESH LITTLE START</span><h2 id="flappy-confirm-title">重新开始这段飞行？</h2><p>本局分数和飞行时间将重置，最高纪录会保留。</p><div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelRestart">继续本局</button><button class="primary-button" @click="restart">确定重开</button></div></dialog>
     <div class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
   </main>

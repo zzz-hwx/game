@@ -192,6 +192,56 @@ test('大厅箭头和加号使用居中 SVG 而非字体字符', async ({ page }
   await expectNoOverflow(page);
 });
 
+test('所有游戏页面不再使用 Unicode 图标字符', async ({ page }) => {
+  const unicodeIcons = '↑↓←→↗↻✓✦✳＋●◆»−ⅠⅡⅢ';
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  for (const game of entries) {
+    await page.goto(`/#/games/${game.id}`);
+    await expect(page.locator(game.selector)).toBeVisible();
+    const offenders = await page.evaluate((characters) => {
+      const pattern = new RegExp(`^[${characters}]+$`);
+      const bad: string[] = [];
+      for (const element of document.querySelectorAll('b, i, span:not([class*=kbd]):not(kbd)')) {
+        const text = (element.textContent ?? '').trim();
+        if (!text || element.children.length) continue;
+        if (element.querySelector('svg, kbd')) continue;
+        if (pattern.test(text)) bad.push(`${element.tagName.toLowerCase()}.${element.className} "${text}"`);
+      }
+      return bad;
+    }, unicodeIcons);
+    expect(offenders).toEqual([]);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('方向按钮与装饰图标统一引用外部 SVG symbol', async ({ page, isMobile }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/#/games/snake');
+  await expect(page.locator('.snake-game')).toBeVisible();
+  if (isMobile) {
+    await expect(page.locator('.mobile-controls button[data-direction] use')).toHaveCount(4);
+    for (const use of await page.locator('.mobile-controls button[data-direction] use').all()) {
+      await expect(use).toHaveAttribute('href', /#icon-dir-(up|down|left|right)$/);
+    }
+  }
+  for (const game of entries) {
+    await page.goto(`/#/games/${game.id}`);
+    await expect(page.locator(game.selector)).toBeVisible();
+    const footers = await page.locator(`${game.selector} footer svg use`).evaluateAll((uses) =>
+      uses.map((use) => use.getAttribute('href')!.split('#')[1]));
+    if (footers.length) {
+      for (const symbol of footers) expect(['icon-arrow-up-right', 'icon-plus', 'i-heart']).toContain(symbol);
+    }
+  }
+  await page.goto('/#/games/2048');
+  await expect(page.locator('.game-2048 .mode-label .mode-arrow use')).toHaveAttribute('href', /#icon-arrow-up-right$/);
+  await page.goto('/#/games/tetris');
+  await expect(page.locator('.tetris-game .mode-tag .tag-arrow use')).toHaveAttribute('href', /#icon-arrow-up-right$/);
+  expect(errors).toEqual([]);
+});
+
 for (const game of entries) {
   test(`大厅${game.name}可进入、返回及刷新`, async ({ page }) => {
     const errors: string[] = [];

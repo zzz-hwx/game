@@ -123,7 +123,7 @@ kbd { font-family: inherit; font-weight: 400; }
 footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 24px 0; border-top: 1px solid #e0e5d4; color: #99a489; font-size: 9px; }
 footer > span { display: flex; align-items: center; gap: 7px; }
 footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1px; }
-footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b; }
+footer > svg { width: 15px; height: 15px; fill: none; stroke: #8a9f6b; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-left: 10px; }
 .confirm-dialog { width: min(420px, calc(100% - 32px)); border: 1px solid #d8dfc9; border-radius: 14px; background: #f9faf0; color: #405434; box-shadow: 0 20px 80px #23321933; padding: 30px; }
 .confirm-dialog::backdrop { background: #2c392652; backdrop-filter: blur(4px); }
 .confirm-dialog h2 { font-size: 22px; margin: 17px 0 14px; }
@@ -195,7 +195,7 @@ footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b;
   .move-list li { min-height: 34px; font-size: 10px; }
   footer { font-size: 8px; padding: 20px 0; }
   footer > span:last-child { font-size: 5px; letter-spacing: .2px; }
-  footer b { margin-left: 0; font-size: 16px; }
+  footer > svg { margin-left: 0; width: 12px; height: 12px; }
 }
 @media (max-width: 360px) {
   .gomoku-game { padding-left: 12px; padding-right: 12px; }

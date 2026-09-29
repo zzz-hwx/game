@@ -57,9 +57,9 @@ const modeOptions: { mode: PlayMode; label: string; description: string }[] = [
   { mode: 'fun', label: '趣味模式', description: '五种果实，三条命，石块障碍' },
 ]
 const difficultyOptions: { level: Level; icon: string; label: string }[] = [
-  { level: 'easy', icon: 'Ⅰ', label: '悠闲' },
-  { level: 'normal', icon: 'Ⅱ', label: '标准' },
-  { level: 'hard', icon: 'Ⅲ', label: '挑战' },
+  { level: 'easy', icon: 'level-1', label: '悠闲' },
+  { level: 'normal', icon: 'level-2', label: '标准' },
+  { level: 'hard', icon: 'level-3', label: '挑战' },
 ]
 const mobileDirections: { direction: Direction; label: string; icon: string }[] = [
   { direction: 'left', label: '向左', icon: 'icon-dir-left' },
@@ -265,6 +265,7 @@ function requestRestart(nextLevel: Level = level.value, nextMode: PlayMode = mod
   if (game.status === 'ready') {
     if (levelChanged) level.value = nextLevel
     if (modeChanged) mode.value = nextMode
+    best.value = parsePreferences(localStorage.getItem(STORAGE_KEY)).best[mode.value][level.value]
     savePreferences()
     return
   }
@@ -291,6 +292,7 @@ function onLevelDialogClosed(): void {
   if (levelDialog.value?.returnValue === 'confirm') {
     if (next) level.value = next
     if (nextMode) mode.value = nextMode
+    best.value = parsePreferences(localStorage.getItem(STORAGE_KEY)).best[mode.value][level.value]
     savePreferences()
     clearTimer()
     game.mode = mode.value
@@ -709,7 +711,7 @@ onBeforeUnmount(() => {
             <div class="section-heading"><h2>你的游戏，你的节奏</h2><span>01</span></div>
             <p class="section-description">选一个舒服的速度，出发吧。</p>
             <div class="difficulty-options" role="group" aria-label="游戏难度">
-              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" :disabled="!!(pendingMode || pendingLevel)" @click="requestRestart(option.level, mode)"><span class="level-icon">{{ option.icon }}</span><span>{{ option.label }}</span></button>
+              <button v-for="option in difficultyOptions" :key="option.level" type="button" class="difficulty-button" :class="{ active: level === option.level }" :data-level="option.level" :aria-pressed="level === option.level" :disabled="!!(pendingMode || pendingLevel)" @click="requestRestart(option.level, mode)"><SvgIcon class="level-icon" aria-hidden="true" :name="option.icon" /><span>{{ option.label }}</span></button>
             </div>
             <div class="speed-caption"><span class="small-dot"></span><span id="speed-caption">{{ speedCaption }}</span></div>
             <div class="card-divider"></div>
@@ -747,7 +749,7 @@ onBeforeUnmount(() => {
         </aside>
       </div>
 
-      <footer><span><span class="footer-dot"></span> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <span class="footer-star">＋</span></span></footer>
+      <footer><span><span class="footer-dot"></span> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <SvgIcon class="footer-star" aria-hidden="true" name="icon-plus" /></span></footer>
     </main>
     <dialog id="level-dialog" ref="levelDialog" class="level-dialog" aria-labelledby="level-dialog-title" aria-describedby="level-dialog-description" @close="onLevelDialogClosed" @cancel.prevent="levelDialog?.close()">
       <h2 id="level-dialog-title">{{ dialogTitle }}</h2>

@@ -164,7 +164,7 @@ onBeforeUnmount(() => {
                 @focus="focusedCard = index" @click="flip(index)">
                 <span class="card-inner" aria-hidden="true">
                   <span class="card-back"><span class="back-emblem"><SvgIcon name="icon-leaf" /></span><small>LITTLE JOY</small></span>
-                  <span class="card-front"><SvgIcon sprite="fruits" :name="`fruit-${FRUITS[card.fruit].id}`" viewBox="0 0 64 64" /><span class="match-mark" v-if="card.matched">✓</span></span>
+                  <span class="card-front"><SvgIcon sprite="fruits" :name="`fruit-${FRUITS[card.fruit].id}`" viewBox="0 0 64 64" /><SvgIcon v-if="card.matched" class="match-mark" aria-hidden="true" name="icon-check" /></span>
                 </span>
               </button>
             </div>
@@ -183,7 +183,7 @@ onBeforeUnmount(() => {
         <section class="rules-card" aria-labelledby="memory-rules-title"><div class="section-heading"><h2 id="memory-rules-title">快乐配对指南</h2><span>HOW TO PLAY</span></div><ol><li><span>01</span><div><h3>翻开两张，看看是谁</h3><p>每次选择两张卡片，记住水果和位置。</p></div></li><li><span>02</span><div><h3>相同留下，不同再试</h3><p>一样的水果配对成功；不一样的稍后会盖回去，别急着翻下一张。</p></div></li><li><span>03</span><div><h3>找齐所有，快乐成双</h3><p>用更少的步数找到所有配对。没有失败，只有越来越熟悉。</p></div></li></ol></section>
       </aside>
     </div>
-    <footer><span><i></i> 把小美好，记在心上。</span><span>FLIP A CARD. FIND A LITTLE JOY. <b>↗</b></span></footer>
+    <footer><span><i></i> 把小美好，记在心上。</span><span>FLIP A CARD. FIND A LITTLE JOY. <SvgIcon class="footer-arrow" aria-hidden="true" name="icon-arrow-up-right" /></span></footer>
     <dialog ref="confirmDialog" class="confirm-dialog" aria-labelledby="memory-confirm-title" @cancel.prevent="cancelChange"><span class="eyebrow">A FRESH LITTLE START</span><h2 id="memory-confirm-title">{{ pendingDifficulty === game.difficulty ? '重新洗牌，开始一局？' : '换个难度，重新开始？' }}</h2><p>当前配对和用时会清空，卡片也会重新洗牌。</p><div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelChange">保留本局</button><button class="primary-button" @click="newGame(pendingDifficulty)">{{ pendingDifficulty === game.difficulty ? '确定重开' : '确定切换' }}</button></div></dialog>
   </main>
 </template>

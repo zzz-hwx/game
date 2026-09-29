@@ -47,6 +47,6 @@ import { games } from '../games/registry';
       <div><h2>快乐不止这些，下一份惊喜正在路上。</h2><p>更多小游戏，慢慢加入。你的休息时间，值得被认真对待。</p></div>
       <span class="note-label">MORE LITTLE JOYS TO COME</span>
     </section>
-    <footer class="lobby-footer"><span><i></i> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <b>＋</b></span></footer>
+    <footer class="lobby-footer"><span><i></i> 纯粹的游戏，简单的快乐。</span><span>MADE FOR YOUR LITTLE BREAK <SvgIcon class="footer-plus" aria-hidden="true" name="icon-plus" /></span></footer>
   </main>
 </template>

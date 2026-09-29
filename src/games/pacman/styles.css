@@ -83,6 +83,7 @@ kbd { font-family: inherit; font-weight: 400; }
 .under-board p > span { color: #99a38a; font-size: 9px; }
 .direction-pad { display: grid; grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(2, 34px); gap: 4px; flex-shrink: 0; }
 .direction-pad button { border: 1px solid #d5dec4; border-bottom-width: 3px; border-radius: 5px; background: #fafbf2; color: #7c8e61; font-size: 18px; padding: 0; touch-action: manipulation; }
+.direction-pad .dir-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .direction-pad button:hover:not(:disabled), .direction-pad button:active:not(:disabled) { background: #e3ead0; }
 .direction-pad button:disabled { opacity: .4; }
 .direction-pad .up { grid-column: 2; }
@@ -137,7 +138,7 @@ kbd { font-family: inherit; font-weight: 400; }
 footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 23px 0; border-top: 1px solid #e0e5d4; color: #99a489; font-size: 9px; }
 footer > span { display: flex; align-items: center; gap: 7px; }
 footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1px; }
-footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b; }
+footer > svg { width: 15px; height: 15px; fill: none; stroke: #8a9f6b; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-left: 10px; }
 .board-overlay { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; padding: 18px; background: #1c30284d; border-radius: 5px; }
 .overlay-card { width: 100%; max-width: 300px; padding: 27px 19px 22px; background: #f8f7eaf5; border: 1px solid #fcfbee; border-radius: 13px; box-shadow: 0 12px 40px #10271933; text-align: center; backdrop-filter: blur(5px); }
 .overlay-mascot { display: flex; align-items: center; justify-content: center; gap: 13px; margin: 0 0 21px; }
@@ -228,7 +229,7 @@ footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b;
   .overlay-card p { font-size: 9px; margin-bottom: 18px; }
   footer { font-size: 8px; padding: 20px 0; }
   footer > span:last-child { font-size: 5px; letter-spacing: .3px; }
-  footer b { margin-left: 0; font-size: 16px; }
+  footer > svg { margin-left: 0; width: 12px; height: 12px; }
 }
 @media (max-width: 360px) {
   .pacman-game { padding-left: 16px; padding-right: 16px; }

@@ -292,7 +292,7 @@ onBeforeUnmount(() => {
         </section>
       </aside>
     </div>
-    <footer><span><i></i> 接住小快乐，给生活一点回弹。</span><span>MAKE ROOM FOR JOY. <b>↗</b></span></footer>
+    <footer><span><i></i> 接住小快乐，给生活一点回弹。</span><span>MAKE ROOM FOR JOY. <SvgIcon class="footer-arrow" aria-hidden="true" name="icon-arrow-up-right" /></span></footer>
     <dialog ref="confirmDialog" class="confirm-dialog" aria-labelledby="breakout-confirm-title" @cancel.prevent="cancelRestart"><span class="eyebrow">A FRESH LITTLE START</span><h2 id="breakout-confirm-title">重新开始这一场快乐？</h2><p>本局分数、生命和关卡将重置，最高纪录会保留。</p><div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelRestart">继续本局</button><button class="primary-button" @click="restart">确定重开</button></div></dialog>
     <div class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
   </main>

@@ -25,11 +25,11 @@ const merged = ref<number[]>([]);
 const spawned = ref<number | null>(null);
 const gained = ref(0);
 const milestones = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048];
-const directions: { direction: Direction; label: string; symbol: string }[] = [
-  { direction: 'left', label: '向左移动', symbol: '←' },
-  { direction: 'up', label: '向上移动', symbol: '↑' },
-  { direction: 'down', label: '向下移动', symbol: '↓' },
-  { direction: 'right', label: '向右移动', symbol: '→' },
+const directions: { direction: Direction; label: string; icon: string }[] = [
+  { direction: 'left', label: '向左移动', icon: 'icon-dir-left' },
+  { direction: 'up', label: '向上移动', icon: 'icon-dir-up' },
+  { direction: 'down', label: '向下移动', icon: 'icon-dir-down' },
+  { direction: 'right', label: '向右移动', icon: 'icon-dir-right' },
 ];
 const keys: Partial<Record<string, Direction>> = {
   ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
@@ -307,7 +307,7 @@ onBeforeUnmount(() => {
         <h1 id="game-title">2048<span>.</span></h1>
         <h2>一点一点，<br>让快乐<span class="highlight">加倍。</span></h2>
         <p class="intro-description">相同的数字，相遇就有好事发生。<br>从一个小小的 2，拼出大大的可能。</p>
-        <div class="mode-label"><SvgIcon name="i-grid" /> 4 × 4 经典模式 <span>↗</span></div>
+        <div class="mode-label"><SvgIcon name="i-grid" /> 4 × 4 经典模式 <SvgIcon class="mode-arrow" aria-hidden="true" name="icon-arrow-up-right" /></div>
         <section class="controls-guide" aria-labelledby="controls-heading">
           <h3 id="controls-heading">动动手指，就这么简单<span>HOW TO PLAY</span></h3>
           <div class="keyboard" aria-hidden="true"><kbd>↑</kbd><div><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div></div>
@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
           <button id="save-2048" class="secondary-button" @click="saveProgress"><SvgIcon name="i-clock" /> 保存进度</button>
           <button id="saves-2048" class="secondary-button" aria-haspopup="dialog" @click="openSaves"><SvgIcon name="i-grid" /> 我的存档 <span v-if="savesReadable" class="save-count">{{ saves.length }}</span></button>
         </div>
-        <div class="touch-controls" role="group" aria-label="方向控制"><button v-for="control in directions" :key="control.direction" :aria-label="control.label" :disabled="game.state !== 'playing'" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && directionClick(control.direction)">{{ control.symbol }}</button></div>
+        <div class="touch-controls" role="group" aria-label="方向控制"><button v-for="control in directions" :key="control.direction" :aria-label="control.label" :disabled="game.state !== 'playing'" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && directionClick(control.direction)"><SvgIcon class="dir-icon" aria-hidden="true" :name="control.icon" /></button></div>
         <p class="save-note"><i :class="{ unavailable: !storageAvailable }"></i>{{ storageAvailable ? '进度和纪录已自动保存在此设备' : '浏览器存储不可用，本局仍可正常游玩' }}</p>
         <p v-if="saveFeedback" class="save-feedback" :class="{ 'save-error': saveError }" role="status">{{ saveFeedback }}</p>
       </section>
@@ -371,14 +371,14 @@ onBeforeUnmount(() => {
           <div class="section-heading"><h2 id="rules-heading">快乐加倍指南</h2><span>01 — 03</span></div>
           <ol>
             <li><span>01</span><div><h3>朝同一个方向</h3><p>滑动时，所有方块一起靠拢。</p></div></li>
-            <li><span>02</span><div><h3>相同数字，合二为一</h3><p>每次有效移动，出现一个 2 或 4。</p><div class="merge-example" aria-hidden="true"><b>2</b><i>＋</i><b>2</b><i>→</i><b>4</b></div></div></li>
+            <li><span>02</span><div><h3>相同数字，合二为一</h3><p>每次有效移动，出现一个 2 或 4。</p><div class="merge-example" aria-hidden="true"><b>2</b><SvgIcon class="merge-plus" aria-hidden="true" name="icon-plus" /><b>2</b><SvgIcon class="merge-arrow" aria-hidden="true" name="icon-arrow" /><b>4</b></div></div></li>
             <li><span>03</span><div><h3>拼出你的 2048</h3><p>无处可移时结束，也可以撤销一步。</p></div></li>
           </ol>
         </section>
         <div class="tip-card"><SvgIcon name="i-bulb" /><div><strong>一个小窍门</strong><p>把最大的数字留在角落，<br>给下一步，多留一点空间。</p></div></div>
       </aside>
     </div>
-    <footer><span><i></i> 纯粹的游戏，简单的快乐。</span><span>SMALL NUMBERS. BIG POSSIBILITIES. <b>＋</b></span></footer>
+    <footer><span><i></i> 纯粹的游戏，简单的快乐。</span><span>SMALL NUMBERS. BIG POSSIBILITIES. <SvgIcon class="footer-plus" aria-hidden="true" name="icon-plus" /></span></footer>
     <dialog ref="restartDialog" class="restart-dialog" aria-labelledby="restart-title-2048" @cancel.prevent="cancelRestart">
       <span class="result-eyebrow">A FRESH LITTLE START</span><h2 id="restart-title-2048">换个心情，再来一局？</h2><p>本局进度会清空，最高纪录会好好保留。手动存档不受影响。</p>
       <div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelRestart">继续本局</button><button class="primary-button" @click="restart">开始新的一局</button></div>

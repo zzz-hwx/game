@@ -27,7 +27,7 @@ const pageContent = ref<HTMLDivElement | null>(null);
           </template>
         </nav>
         <span v-if="route.name === 'home'" class="club-header-note"><i></i> 忙里偷闲，理直气壮</span>
-        <RouterLink v-else to="/" class="back-home"><span aria-hidden="true">←</span> 返回大厅</RouterLink>
+        <RouterLink v-else to="/" class="back-home"><SvgIcon class="back-icon" aria-hidden="true" name="icon-back" /> 返回大厅</RouterLink>
       </div>
     </header>
     <div id="page-content" ref="pageContent" tabindex="-1">

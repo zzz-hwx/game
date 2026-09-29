@@ -190,7 +190,7 @@ onBeforeUnmount(stopComputer);
         <section class="moves-card" aria-labelledby="gomoku-history-title"><div class="section-heading"><h2 id="gomoku-history-title">落子足迹</h2><span>LAST 6 MOVES</span></div><p v-if="!recentMoves.length" class="empty-history">棋盘已就绪，等你的第一手。</p><ol v-else class="move-list"><li v-for="move in recentMoves" :key="move.number"><span class="move-number">{{ String(move.number).padStart(2, '0') }}</span><i class="stone" :class="move.player === 1 ? 'black' : 'white'" aria-hidden="true"></i><span>{{ playerName(move.player) }}</span><strong>{{ columns[move.col] }}{{ move.row + 1 }}</strong><small v-if="move.number === game.history.length">最新</small></li></ol></section>
       </aside>
     </div>
-    <footer><span><i></i> 黑白之间，留一点时间给自己。</span><span>A LITTLE FOCUS. A LITTLE JOY. <b>↗</b></span></footer>
+    <footer><span><i></i> 黑白之间，留一点时间给自己。</span><span>A LITTLE FOCUS. A LITTLE JOY. <SvgIcon class="footer-arrow" aria-hidden="true" name="icon-arrow-up-right" /></span></footer>
     <dialog ref="confirmDialog" class="confirm-dialog" aria-labelledby="gomoku-confirm-title" @cancel.prevent="cancelChange">
       <span class="eyebrow">A FRESH LITTLE START</span><h2 id="gomoku-confirm-title">{{ pendingMode === mode ? '重新开始这一局？' : '换个棋友，重新开局？' }}</h2><p>当前棋局将被清空。没关系，每一局都是新的可能。</p><div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelChange">继续本局</button><button class="primary-button" @click="newGame(pendingMode)">{{ pendingMode === mode ? '确定重开' : '确定切换' }}</button></div>
     </dialog>

@@ -33,7 +33,7 @@ button:disabled { cursor: default; }
 .club-header-note i, .hero-pills i, .lobby-footer i { width: 5px; height: 5px; border-radius: 50%; background: #92a575; display: inline-block; }
 .back-home { color: #6e7e60; font-size: 11px; text-decoration: none; padding: 9px 13px; border: 1px solid #dce2d1; border-radius: 7px; white-space: nowrap; }
 .back-home:hover { background: #e8eedc; }
-.back-home span { margin-right: 6px; }
+.back-home .back-icon { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-right: 6px; }
 .lobby { max-width: 1220px; margin: auto; padding: 0 36px; }
 .lobby-hero { display: flex; align-items: center; justify-content: space-between; padding: 61px 0 51px; gap: 35px; }
 .lobby-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 23px; font-family: Consolas, "Microsoft YaHei", monospace; font-size: 9px; letter-spacing: 1.8px; color: #80916e; }
@@ -87,7 +87,7 @@ button:disabled { cursor: default; }
 .lobby-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 30px 0 27px; font-size: 9px; color: #9da58f; }
 .lobby-footer > span { display: flex; gap: 8px; align-items: center; }
 .lobby-footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1.2px; }
-.lobby-footer b { font-size: 17px; margin-left: 9px; font-weight: 400; color: #8da070; }
+.lobby-footer > svg { width: 13px; height: 13px; fill: none; stroke: #8da070; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-left: 9px; }
 @media (min-width: 1500px) {
   .lobby-hero { padding-top: 74px; padding-bottom: 63px; }
   .club-header-inner, .lobby { max-width: 1260px; }
@@ -149,7 +149,7 @@ button:disabled { cursor: default; }
   .note-label { display: none; }
   .lobby-footer { font-size: 8px; padding: 26px 0; }
   .lobby-footer > span:last-child { font-size: 5px; letter-spacing: .3px; }
-  .lobby-footer b { margin-left: 0; font-size: 14px; }
+  .lobby-footer > svg { margin-left: 0; width: 11px; height: 11px; }
 }
 @media (max-width: 400px) {
   .lobby { padding: 0 18px; }

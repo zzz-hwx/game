@@ -17,11 +17,11 @@ const showHint = ref(false);
 const facing = ref<Direction>('down');
 const pendingLevel = ref(0);
 const storageKey = 'little-break-sokoban-v1';
-const controls: { direction: Direction; label: string; symbol: string }[] = [
-  { direction: 'up', label: '向上移动', symbol: '↑' },
-  { direction: 'left', label: '向左移动', symbol: '←' },
-  { direction: 'down', label: '向下移动', symbol: '↓' },
-  { direction: 'right', label: '向右移动', symbol: '→' },
+const controls: { direction: Direction; label: string; icon: string }[] = [
+  { direction: 'up', label: '向上移动', icon: 'icon-dir-up' },
+  { direction: 'left', label: '向左移动', icon: 'icon-dir-left' },
+  { direction: 'down', label: '向下移动', icon: 'icon-dir-down' },
+  { direction: 'right', label: '向右移动', icon: 'icon-dir-right' },
 ];
 const keys: Partial<Record<string, Direction>> = {
   ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right',
@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
               <div class="tile-grid" role="img" :aria-label="boardDescription">
                 <div v-for="(cell, index) in game.cells" :key="`${game.levelIndex}-${index}`" class="tile" :class="cell" aria-hidden="true"><span v-if="cell === 'goal'" class="goal-marker"></span></div>
               </div>
-              <div v-for="(cell, index) in game.boxes" :key="`${game.levelIndex}-box-${index}`" class="piece box-piece" :style="position(cell)" :data-cell="cell" aria-hidden="true"><div class="crate" :class="{ placed: game.cells[cell] === 'goal' }"><span v-if="game.cells[cell] === 'goal'">✓</span></div></div>
+              <div v-for="(cell, index) in game.boxes" :key="`${game.levelIndex}-box-${index}`" class="piece box-piece" :style="position(cell)" :data-cell="cell" aria-hidden="true"><div class="crate" :class="{ placed: game.cells[cell] === 'goal' }"><SvgIcon v-if="game.cells[cell] === 'goal'" class="crate-check" aria-hidden="true" name="icon-check" /></div></div>
               <div class="piece player-piece" :class="`facing-${facing}`" :style="position(game.player)" :data-cell="game.player" aria-hidden="true"><div class="worker"><span class="worker-body"></span><span class="worker-face"><i></i><i></i></span><span class="worker-cap"></span></div></div>
             </div>
             <div v-if="game.won" class="win-overlay" role="region" aria-labelledby="sokoban-win-title">
@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
         <div class="game-actions"><button id="sokoban-undo" class="secondary-button" :disabled="!game.canUndo" @click="undo"><SvgIcon name="icon-restart" /> 撤销一步 <kbd>Z</kbd></button><button id="sokoban-restart" class="primary-button" @click="requestLevel(game.levelIndex)"><SvgIcon name="i-reset" /> 重新开始 <kbd>R</kbd></button></div>
         <div class="under-board">
           <div class="board-legend" aria-label="棋盘图例"><span><i class="legend-worker"></i>搬运工</span><span><i class="legend-crate"></i>箱子</span><span><i class="legend-goal"></i>目标点</span></div>
-          <div class="direction-pad" role="group" aria-label="方向控制"><button v-for="control in controls" :key="control.direction" :class="control.direction" :aria-label="control.label" :disabled="game.won" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && directionClick(control.direction)">{{ control.symbol }}</button></div>
+          <div class="direction-pad" role="group" aria-label="方向控制"><button v-for="control in controls" :key="control.direction" :class="control.direction" :aria-label="control.label" :disabled="game.won" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && directionClick(control.direction)"><SvgIcon class="dir-icon" aria-hidden="true" :name="control.icon" /></button></div>
         </div>
         <p class="save-note"><i :class="{ unavailable: !storageAvailable }"></i>{{ storageAvailable ? '通关纪录自动保存在此设备 · 随时回来，重新出发' : '浏览器存储不可用，仍可正常游玩' }}</p>
       </section>
@@ -285,12 +285,12 @@ onBeforeUnmount(() => {
         </section>
         <section class="rules-card" aria-labelledby="rules-title">
           <div class="section-heading"><h2 id="rules-title">箱子归位指南</h2><span>HOW TO PLAY</span></div>
-          <ol><li><span>01</span><div><h3>走到箱子身后</h3><p>用方向键移动，把箱子向前推。</p></div></li><li><span>02</span><div><h3>只能推，不能拉</h3><p>一次只能推一个箱子。小心角落，<br>别把它推到出不来的地方。</p></div></li><li><span>03</span><div><h3>每个箱子，都有归宿</h3><p>把所有箱子推到圆圈标记上，<br>这一关就完成了。</p><div class="rule-example" aria-hidden="true"><i class="mini-crate"></i><span>→</span><i class="mini-goal"></i><span>→</span><i class="mini-done">✓</i></div></div></li></ol>
+          <ol><li><span>01</span><div><h3>走到箱子身后</h3><p>用方向键移动，把箱子向前推。</p></div></li><li><span>02</span><div><h3>只能推，不能拉</h3><p>一次只能推一个箱子。小心角落，<br>别把它推到出不来的地方。</p></div></li><li><span>03</span><div><h3>每个箱子，都有归宿</h3><p>把所有箱子推到圆圈标记上，<br>这一关就完成了。</p><div class="rule-example" aria-hidden="true"><i class="mini-crate"></i><SvgIcon class="rule-arrow" aria-hidden="true" name="icon-arrow" /><i class="mini-goal"></i><SvgIcon class="rule-arrow" aria-hidden="true" name="icon-arrow" /><i class="mini-done"><SvgIcon class="done-check" aria-hidden="true" name="icon-check" /></i></div></div></li></ol>
         </section>
-        <section class="hint-card"><button class="hint-toggle" :aria-expanded="showHint" aria-controls="sokoban-hint" @click="showHint = !showHint"><SvgIcon name="i-bulb" /><span>{{ showHint ? '给你一点小灵感' : '需要一点小灵感？' }}</span><span>{{ showHint ? '−' : '＋' }}</span></button><p v-if="showHint" id="sokoban-hint">{{ level.hint }}</p></section>
+        <section class="hint-card"><button class="hint-toggle" :aria-expanded="showHint" aria-controls="sokoban-hint" @click="showHint = !showHint"><SvgIcon name="i-bulb" /><span>{{ showHint ? '给你一点小灵感' : '需要一点小灵感？' }}</span><SvgIcon class="hint-toggle-icon" aria-hidden="true" :name="showHint ? 'icon-minus' : 'icon-plus'" /></button><p v-if="showHint" id="sokoban-hint">{{ level.hint }}</p></section>
       </aside>
     </div>
-    <footer><span><i></i> 整理小箱子，也整理一下心情。</span><span>ONE PUSH AT A TIME. <b>↗</b></span></footer>
+    <footer><span><i></i> 整理小箱子，也整理一下心情。</span><span>ONE PUSH AT A TIME. <SvgIcon class="footer-arrow" aria-hidden="true" name="icon-arrow-up-right" /></span></footer>
     <dialog ref="confirmDialog" class="confirm-dialog" aria-labelledby="sokoban-confirm-title" @cancel="focusBoard">
       <span class="eyebrow">A FRESH LITTLE START</span><h2 id="sokoban-confirm-title">{{ pendingLevel === game.levelIndex ? '重新整理这个小仓库？' : '去另一个仓库看看？' }}</h2><p>本关的移动进度将重置，已通关的纪录会保留。</p><div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelChange">继续本关</button><button class="primary-button" @click="loadLevel(pendingLevel)">确定{{ pendingLevel === game.levelIndex ? '重开' : '切换' }}</button></div>
     </dialog>

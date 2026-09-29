@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
             <button id="sound-button" class="sound-button" type="button" :aria-label="soundEnabled ? '关闭音效' : '开启音效'" :aria-pressed="soundEnabled" @click="toggleSound"><SvgIcon class="icon" aria-hidden="true" :name="soundEnabled ? 'i-sound' : 'i-muted'" /><span>音效已{{ soundEnabled ? '开' : '关' }}</span></button>
           </div>
         </div>
-        <div class="hero-art" aria-hidden="true"><span class="art-spark spark-one">✦</span><span class="art-dots"></span><div class="floating-tile tile-back"><SvgIcon sprite="fruits" name="fruit-cherry" /></div><div class="floating-tile tile-front"><SvgIcon sprite="fruits" name="fruit-cherry" /></div><span class="art-spark spark-two">✦</span><SvgIcon class="art-line" viewBox="0 0 100 50" sprite="illustrations" name="link-art-line" /></div>
+        <div class="hero-art" aria-hidden="true"><SvgIcon class="art-spark spark-one" aria-hidden="true" name="i-spark" /><span class="art-dots"></span><div class="floating-tile tile-back"><SvgIcon sprite="fruits" name="fruit-cherry" /></div><div class="floating-tile tile-front"><SvgIcon sprite="fruits" name="fruit-cherry" /></div><SvgIcon class="art-spark spark-two" aria-hidden="true" name="i-spark" /><SvgIcon class="art-line" viewBox="0 0 100 50" sprite="illustrations" name="link-art-line" /></div>
       </section>
 
       <div class="game-layout">

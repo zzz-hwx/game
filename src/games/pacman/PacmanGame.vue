@@ -13,11 +13,11 @@ const best = ref(0);
 const storageAvailable = ref(true);
 const storageKey = 'little-break-pacman-best-v1';
 const announcement = ref('准备好了，就开始收集快乐吧。');
-const controls: { direction: Direction; label: string; symbol: string }[] = [
-  { direction: 'up', label: '向上移动', symbol: '↑' },
-  { direction: 'left', label: '向左移动', symbol: '←' },
-  { direction: 'down', label: '向下移动', symbol: '↓' },
-  { direction: 'right', label: '向右移动', symbol: '→' },
+const controls: { direction: Direction; label: string; icon: string }[] = [
+  { direction: 'up', label: '向上移动', icon: 'icon-dir-up' },
+  { direction: 'left', label: '向左移动', icon: 'icon-dir-left' },
+  { direction: 'down', label: '向下移动', icon: 'icon-dir-down' },
+  { direction: 'right', label: '向右移动', icon: 'icon-dir-right' },
 ];
 const keys: Partial<Record<string, Direction>> = {
   ArrowUp: 'up', ArrowLeft: 'left', ArrowDown: 'down', ArrowRight: 'right',
@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
           <div class="board-status" :class="{ powered: game.powerTicks > 0 }"><span><i></i>{{ statusText }}</span><span v-if="game.powerTicks > 0">{{ powerSeconds }}s</span><SvgIcon v-else name="icon-leaf" /></div>
         </div>
         <div class="game-actions"><button id="pacman-start" class="primary-button" @click="action"><SvgIcon :name="game.status === 'playing' ? 'icon-pause' : 'icon-play'" />{{ overlay.action }}<kbd>Space</kbd></button><button id="pacman-restart" class="secondary-button" :disabled="game.status === 'ready'" @click="requestRestart"><SvgIcon name="icon-restart" /> 重新开始</button></div>
-        <div class="under-board"><p>跟着豆豆走，<br><span>下一口快乐，就在前面。</span></p><div class="direction-pad" role="group" aria-label="方向控制"><button v-for="control in controls" :key="control.direction" :class="control.direction" :aria-label="control.label" :disabled="!['ready', 'playing'].includes(game.status)" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && steer(control.direction)">{{ control.symbol }}</button></div></div>
+        <div class="under-board"><p>跟着豆豆走，<br><span>下一口快乐，就在前面。</span></p><div class="direction-pad" role="group" aria-label="方向控制"><button v-for="control in controls" :key="control.direction" :class="control.direction" :aria-label="control.label" :disabled="!['ready', 'playing'].includes(game.status)" @pointerdown="directionPointer($event, control.direction)" @click="$event.detail === 0 && steer(control.direction)"><SvgIcon class="dir-icon" aria-hidden="true" :name="control.icon" /></button></div></div>
         <p class="save-note"><i :class="{ unavailable: !storageAvailable }"></i>{{ storageAvailable ? '最高纪录自动保存在此设备 · 快乐不打烊' : '浏览器存储不可用，仍可正常游玩' }}</p>
       </section>
 
@@ -289,7 +289,7 @@ onBeforeUnmount(() => {
         <section class="rules-card" aria-labelledby="pacman-rules-title"><div class="section-heading"><h2 id="pacman-rules-title">迷宫漫游指南</h2><span>HOW TO PLAY</span></div><ol><li><span>01</span><div><h3>一路吃豆，一路向前</h3><p>吃光豆豆，进入下一张迷宫。{{ MAZES.length }} 张地图循环挑战，节奏逐步加快。提前按方向，到路口自动转弯。</p></div></li><li><span>02</span><div><h3>小心这几位“老朋友”</h3><p>碰到普通幽灵会失去一条生命。你有三次机会，别着急。</p><div class="ghost-friends" aria-hidden="true"><i class="little-ghost pink"></i><i class="little-ghost mint"></i><i class="little-ghost lilac"></i><span>有点调皮，没有恶意。</span></div></div></li><li><span>03</span><div><h3>停下来，也没关系</h3><p>空格键随时暂停，离开页面自动暂停。回来接着快乐就好。</p></div></li></ol></section>
       </aside>
     </div>
-    <footer><span><i></i> 不赶时间，只追一点小快乐。</span><span>ONE DOT AT A TIME. <b>↗</b></span></footer>
+    <footer><span><i></i> 不赶时间，只追一点小快乐。</span><span>ONE DOT AT A TIME. <SvgIcon class="footer-arrow" aria-hidden="true" name="icon-arrow-up-right" /></span></footer>
     <dialog ref="confirmDialog" class="confirm-dialog" aria-labelledby="pacman-confirm-title" @cancel.prevent="cancelRestart"><span class="eyebrow">A FRESH LITTLE START</span><h2 id="pacman-confirm-title">开始新的一趟追逐？</h2><p>本局分数和关卡将重置，最高纪录会保留。</p><div class="dialog-actions"><button class="secondary-button" autofocus @click="cancelRestart">继续本局</button><button class="primary-button" @click="restart">确定重开</button></div></dialog>
     <div class="sr-only" role="status" aria-live="polite">{{ announcement }}</div>
   </main>

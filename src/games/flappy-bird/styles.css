@@ -95,7 +95,7 @@ kbd { font-family: Consolas, monospace; font-weight: 400; }
 footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e0e5d4; padding: 23px 0; font-size: 9px; color: #99a489; }
 footer > span { display: flex; align-items: center; gap: 7px; }
 footer > span:last-child { font: 7px Consolas, monospace; letter-spacing: 1px; }
-footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b; }
+footer > svg { width: 15px; height: 15px; fill: none; stroke: #8a9f6b; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-left: 10px; }
 .board-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; background: #dbe8d22e; }
 .overlay-card { width: 100%; max-width: 294px; padding: 26px 20px 23px; background: #fafbf0ed; border: 1px solid #fffdf4; border-radius: 15px; box-shadow: 0 12px 35px #46624417; text-align: center; backdrop-filter: blur(5px); }
 .flight-badge { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 20px; background: #e7edcf; color: #8a9e6d; border: 1px solid #d6dfba; }
@@ -176,7 +176,7 @@ footer b { font-size: 20px; font-weight: 400; margin-left: 10px; color: #8a9f6b;
   .overlay-card p { font-size: 9px; margin-bottom: 19px; }
   footer { font-size: 8px; padding: 20px 0; }
   footer > span:last-child { font-size: 5px; letter-spacing: .2px; }
-  footer b { margin-left: 0; font-size: 16px; }
+  footer > svg { margin-left: 0; width: 12px; height: 12px; }
 }
 @media (max-width: 360px) {
   .flappy-bird-game { padding-left: 16px; padding-right: 16px; }

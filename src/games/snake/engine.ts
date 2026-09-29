@@ -12,11 +12,11 @@ export const OBSTACLES: readonly Readonly<Point>[] = [6, 15].flatMap(y =>
   [6, 7, 8, 9, 18, 19, 20, 21].map(x => ({ x, y })),
 )
 export const foodTypes = {
-  apple: { label: '红果', points: 10, color: '#cc7b5e', symbol: '●', description: '长大 1 格' },
-  golden: { label: '金果', points: 30, color: '#a37a24', symbol: '◆', description: '长大 1 格' },
-  speed: { label: '疾速果', points: 20, color: '#b66c34', symbol: '»', description: '加速 6 秒 · 长大 1 格' },
-  slow: { label: '冰霜果', points: 15, color: '#447f99', symbol: 'Ⅱ', description: '减速 6 秒 · 长大 1 格' },
-  shrink: { label: '轻盈果', points: 25, color: '#8564a2', symbol: '−', description: '缩短 3 格 · 最短 3 格' },
+  apple: { label: '红果', points: 10, color: '#cc7b5e', description: '长大 1 格' },
+  golden: { label: '金果', points: 30, color: '#a37a24', description: '长大 1 格' },
+  speed: { label: '疾速果', points: 20, color: '#b66c34', description: '加速 6 秒 · 长大 1 格' },
+  slow: { label: '冰霜果', points: 15, color: '#447f99', description: '减速 6 秒 · 长大 1 格' },
+  shrink: { label: '轻盈果', points: 25, color: '#8564a2', description: '缩短 3 格 · 最短 3 格' },
 } as const
 const foodDistribution: readonly FoodKind[] = ['apple', 'apple', 'apple', 'apple', 'golden', 'golden', 'speed', 'slow', 'shrink', 'shrink']
 
